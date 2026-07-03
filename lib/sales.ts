@@ -17,6 +17,8 @@ export type Sale = {
   totalCents: number;
   amountPaidCents: number;
   changeCents: number;
+  discountCents: number; // descuento de lealtad calculado en servidor
+  promotionName: string | null; // nombre de la promo aplicada (o null)
   paymentMethod: PaymentMethod;
   customerId: string | null;
   customerName: string | null;
@@ -24,14 +26,24 @@ export type Sale = {
   items?: SaleItem[];
 };
 
+// El servidor calcula el descuento a partir de la promoción; el cliente solo
+// envía la promoción elegida y, opcionalmente, la unidad beneficiada.
 export const createSale = (
   items: { productId: string; quantity: number }[],
   paymentMethod: PaymentMethod,
   amountPaidCents: number,
   customerId?: string | null,
+  opts?: { promotionId?: string | null; promotionProductId?: string | null },
 ) =>
   api
-    .post<{ sale: Sale }>('/sales', { items, paymentMethod, amountPaidCents, customerId: customerId ?? null })
+    .post<{ sale: Sale }>('/sales', {
+      items,
+      paymentMethod,
+      amountPaidCents,
+      customerId: customerId ?? null,
+      promotionId: opts?.promotionId ?? null,
+      promotionProductId: opts?.promotionProductId ?? null,
+    })
     .then((r) => r.sale);
 
 export const listSales = (params?: { from?: string; to?: string }) => {

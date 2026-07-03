@@ -7,6 +7,7 @@ import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
 
 export default function NewTenantPage() {
@@ -65,9 +66,8 @@ export default function NewTenantPage() {
           />
         </FormField>
         <FormField label="Contraseña temporal (mín. 8)" htmlFor="ownerPassword">
-          <Input
+          <PasswordInput
             id="ownerPassword"
-            type="password"
             minLength={8}
             value={form.ownerPassword}
             onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })}

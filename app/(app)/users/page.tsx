@@ -7,6 +7,7 @@ import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
 
 export default function UsersPage() {
@@ -95,9 +96,8 @@ export default function UsersPage() {
             />
           </FormField>
           <FormField label="Contraseña (mín. 8)" htmlFor="password">
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               minLength={8}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
