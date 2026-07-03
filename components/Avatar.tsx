@@ -3,19 +3,19 @@
 import { useEffect, useState } from 'react';
 import { imageSrc } from '@/lib/uploads';
 
-// Iniciales distintivas:
-// - varias palabras -> primera letra de cada una (hasta 3): "Bebidas Frías" -> "BF"
-// - una palabra      -> primeras 3 letras: "Alimentos" -> "ALI"
-function initials(name: string): string {
+// Iniciales distintivas (max = nº de letras):
+// - varias palabras -> primera letra de cada una: "Bebidas Frías" -> "BF"
+// - una palabra      -> primeras `max` letras: "Alimentos" -> "ALI" (o "AL" con max=2)
+function initials(name: string, max = 3): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length >= 2) {
     return words
-      .slice(0, 3)
+      .slice(0, max)
       .map((w) => w[0])
       .join('')
       .toUpperCase();
   }
-  return (words[0] ?? '').slice(0, 3).toUpperCase();
+  return (words[0] ?? '').slice(0, max).toUpperCase();
 }
 
 // Color de fondo estable derivado del nombre (placeholder cuando no hay imagen).
@@ -31,12 +31,14 @@ export function Avatar({
   className = '',
   initialsClass = 'text-xs',
   fit = 'cover',
+  maxInitials = 3,
 }: {
   name: string;
   imageUrl?: string | null;
   className?: string;
   initialsClass?: string;
   fit?: 'cover' | 'contain'; // 'contain' = imagen completa; 'cover' = rellena y recorta
+  maxInitials?: number;
 }) {
   const src = imageSrc(imageUrl ?? undefined);
   const [failed, setFailed] = useState(false);
@@ -56,7 +58,7 @@ export function Avatar({
 
   return (
     <div className={`flex items-center justify-center ${className}`} style={{ background: bgFor(name) }}>
-      <span className={`font-bold text-ink ${initialsClass}`}>{initials(name)}</span>
+      <span className={`font-bold text-ink ${initialsClass}`}>{initials(name, maxInitials)}</span>
     </div>
   );
 }
