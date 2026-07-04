@@ -63,6 +63,7 @@ export type PromotionStatus = {
   resetsCounter: boolean;
   visitsRemaining: number; // max(0, visitThreshold - visits)
   applicableNow: boolean; // (visits + 1) >= visitThreshold  ⇔ visitsRemaining <= 1
+  redeemedThisCycle: boolean; // ya se aplicó esta promo en el ciclo vigente
   products: PromoProduct[];
 };
 

@@ -26,7 +26,7 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    if (!me.isSuperAdmin) void refresh();
+    if (me.isSuperAdmin) void refresh();
   }, [me.isSuperAdmin]);
 
   async function toggleStatus(p: Product) {
@@ -43,10 +43,10 @@ export default function ProductsPage() {
     [items, q],
   );
 
-  if (me.isSuperAdmin) {
+  if (!me.isSuperAdmin) {
     return (
       <Card>
-        <p className="text-muted">Los productos se gestionan por negocio.</p>
+        <p className="text-muted">Solo el administrador del negocio gestiona los productos.</p>
       </Card>
     );
   }

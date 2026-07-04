@@ -8,18 +8,19 @@ import type { User } from '@/lib/auth';
 export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) {
   const pathname = usePathname();
 
-  const items = [{ href: '/dashboard', label: 'Dashboard' }];
-  if (!user.isSuperAdmin) {
-    items.push({ href: '/pos', label: 'Punto de venta' });
-    items.push({ href: '/categories', label: 'Categorías' });
-    items.push({ href: '/products', label: 'Productos' });
-    items.push({ href: '/reports', label: 'Reportes' });
-    items.push({ href: '/loyalty', label: 'Lealtad' });
-    items.push({ href: '/users', label: 'Usuarios' });
-  }
-  if (user.isSuperAdmin) {
-    items.push({ href: '/tenants/new', label: 'Nuevo negocio' });
-  }
+  // Menú por perfil (M7 v2 · §8): el super admin administra el negocio; el usuario de
+  // sucursal solo opera el POS.
+  const items = user.isSuperAdmin
+    ? [
+        { href: '/products', label: 'Productos' },
+        { href: '/categories', label: 'Categorías' },
+        { href: '/loyalty', label: 'Lealtad' },
+        { href: '/users', label: 'Usuarios' },
+        { href: '/branches', label: 'Sucursales' },
+        { href: '/reports', label: 'Reportes' },
+        { href: '/settings', label: 'Negocio' },
+      ]
+    : [{ href: '/pos', label: 'Punto de venta' }];
 
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-line bg-surface p-4">

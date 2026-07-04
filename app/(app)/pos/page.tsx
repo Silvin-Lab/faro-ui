@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/lib/user-context';
+import { useUser, useSession } from '@/lib/user-context';
 import { listProducts, toPesos, toCents, type Product } from '@/lib/products';
 import { listCategories, type Category } from '@/lib/categories';
 import { createSale, listSales, getSale, type Sale, type PaymentMethod } from '@/lib/sales';
@@ -50,6 +50,7 @@ function fmtAmount(cents: number): string {
 
 export default function PosPage() {
   const me = useUser();
+  const session = useSession();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
@@ -71,6 +72,13 @@ export default function PosPage() {
   const [detailModal, setDetailModal] = useState(false);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null); // promotionProductId (unidad)
+
+  // M7 v2: sucursal activa (de la sesión) para el encabezado "Faro. {sucursal}".
+  const branchName = useMemo(
+    () => session.branches.find((b) => b.id === session.activeBranchId)?.name ?? null,
+    [session.branches, session.activeBranchId],
+  );
+  const canSwitchBranch = session.branches.length > 1;
 
   useEffect(() => {
     if (!me.isSuperAdmin) {
@@ -274,9 +282,18 @@ export default function PosPage() {
       <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-3">
         <div className="text-xl font-bold text-ink">
           Faro<span className="text-accent-strong">.</span>{' '}
-          <span className="text-sm font-normal text-muted">Punto de venta</span>
+          {branchName ? (
+            <span className="text-base font-semibold text-ink">{branchName}</span>
+          ) : (
+            <span className="text-sm font-normal text-muted">Punto de venta</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {canSwitchBranch && (
+            <Button variant="ghost" onClick={() => router.push('/select-branch')}>
+              Cambiar sucursal
+            </Button>
+          )}
           <Button variant="outline" onClick={openRecent}>
             Ventas del día
           </Button>
@@ -476,10 +493,25 @@ export default function PosPage() {
               </div>
             ) : (
               <button
-                className="flex w-full items-center justify-center gap-1 text-muted hover:text-ink"
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-accent-strong bg-accent px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-accent-strong"
                 onClick={() => setCustomerModal(true)}
               >
-                + Asociar cliente
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  className="shrink-0"
+                >
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                Asociar cliente
               </button>
             )}
           </div>
@@ -600,9 +632,14 @@ export default function PosPage() {
           cartProductIds={new Set(lines.map((l) => l.product.id))}
           selectedPromotionId={selectedPromotionId}
           selectedProductId={selectedProductId}
-          onSelect={(promotionId, productId) => {
+          onApply={(promotionId, productId) => {
             setSelectedPromotionId(promotionId);
             setSelectedProductId(productId);
+            setDetailModal(false);
+          }}
+          onRemove={() => {
+            setSelectedPromotionId(null);
+            setSelectedProductId(null);
           }}
           onClose={() => setDetailModal(false)}
         />
@@ -728,14 +765,29 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
               ) : searching ? (
                 <p className="text-xs text-muted">Buscando…</p>
               ) : results && results.length > 0 ? (
-                <ul className="divide-y divide-line">
+                <ul className="overflow-hidden rounded-md border border-line">
                   {results.map((c) => (
-                    <li key={c.id}>
+                    <li key={c.id} className="even:bg-bg">
                       <button
                         onClick={() => onSelect(c)}
-                        className="flex w-full items-center justify-between gap-2 py-2 text-left text-sm hover:text-accent-strong"
+                        className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm transition-colors hover:bg-accent/20"
                       >
-                        <span className="min-w-0 truncate text-ink">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className="shrink-0 text-muted"
+                        >
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <span className="min-w-0 flex-1 truncate text-ink">
                           {c.firstName} {c.lastName}
                         </span>
                         <span className="shrink-0 text-xs text-muted">{c.phone}</span>
@@ -810,14 +862,16 @@ function LoyaltyDetailModal({
   cartProductIds,
   selectedPromotionId,
   selectedProductId,
-  onSelect,
+  onApply,
+  onRemove,
   onClose,
 }: {
   status: CustomerLoyaltyStatus | null;
   cartProductIds: Set<string>;
   selectedPromotionId: string | null;
   selectedProductId: string | null;
-  onSelect: (promotionId: string | null, productId: string | null) => void;
+  onApply: (promotionId: string, productId: string | null) => void;
+  onRemove: () => void;
   onClose: () => void;
 }) {
   // Orden ascendente por visitas restantes (las aplicables primero).
@@ -825,17 +879,34 @@ function LoyaltyDetailModal({
     ? [...status.promotions].sort((a, b) => a.visitsRemaining - b.visitsRemaining)
     : [];
 
-  function pickPromotion(p: PromotionStatus) {
-    if (selectedPromotionId === p.promotionId) {
-      onSelect(null, null);
+  // Promo desplegada (una a la vez): al abrir el modal, si ya hay una promo
+  // aplicada a la venta, se muestra desplegada para poder revisarla/cambiarla.
+  const [expandedId, setExpandedId] = useState<string | null>(selectedPromotionId);
+  // Unidad beneficiada elegida dentro de la promo desplegada (aún no aplicada).
+  const [chosenProductId, setChosenProductId] = useState<string | null>(
+    selectedPromotionId ? selectedProductId : null,
+  );
+
+  // Producto por defecto: el elegible presente en el carrito de mayor precio;
+  // si ninguno está en el carrito, el primero de la lista.
+  function defaultProductId(p: PromotionStatus): string | null {
+    const inCart = p.products.filter((pp) => cartProductIds.has(pp.id));
+    if (inCart.length) {
+      return inCart.reduce((max, pp) => (pp.priceCents > max.priceCents ? pp : max), inCart[0]).id;
+    }
+    return p.products[0]?.id ?? null;
+  }
+
+  function toggleExpand(p: PromotionStatus) {
+    if (expandedId === p.promotionId) {
+      setExpandedId(null);
       return;
     }
-    // Producto por defecto: el elegible presente en el carrito de mayor precio.
-    const inCart = p.products.filter((pp) => cartProductIds.has(pp.id));
-    const def = inCart.length
-      ? inCart.reduce((max, pp) => (pp.priceCents > max.priceCents ? pp : max), inCart[0])
-      : null;
-    onSelect(p.promotionId, def?.id ?? null);
+    setExpandedId(p.promotionId);
+    // Si es la promo ya aplicada, respeta su unidad; si no, calcula el default.
+    setChosenProductId(
+      selectedPromotionId === p.promotionId ? selectedProductId : defaultProductId(p),
+    );
   }
 
   return (
@@ -856,9 +927,28 @@ function LoyaltyDetailModal({
                 <p className="text-sm text-muted">Este negocio no tiene promociones activas.</p>
               )}
               {promotions.map((p) => {
-                const selected = selectedPromotionId === p.promotionId;
+                const applied = selectedPromotionId === p.promotionId;
                 const rewardText = p.discountPercent === 100 ? 'Producto gratis' : `${p.discountPercent}% de descuento`;
 
+                // Estado: ya aplicada este ciclo (deshabilitada, en gris).
+                if (p.redeemedThisCycle) {
+                  return (
+                    <div
+                      key={p.promotionId}
+                      className="rounded-md border border-line bg-bg px-3 py-2 opacity-60"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm text-muted">{p.name}</span>
+                        <span className="shrink-0 rounded-full bg-line px-2 py-0.5 text-xs font-medium text-muted">
+                          Ya aplicada este ciclo
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted">{rewardText}</p>
+                    </div>
+                  );
+                }
+
+                // Estado: aún no alcanza el umbral (informativo).
                 if (!p.applicableNow) {
                   return (
                     <div key={p.promotionId} className="rounded-md border border-line px-3 py-2">
@@ -875,53 +965,115 @@ function LoyaltyDetailModal({
                   );
                 }
 
+                // Estado: disponible (expandible → lista de productos + Aplicar).
+                const expanded = expandedId === p.promotionId;
                 return (
                   <div
                     key={p.promotionId}
-                    className={`rounded-md border px-3 py-2 transition-colors ${
-                      selected ? 'border-accent-strong bg-accent/20' : 'border-line'
+                    className={`rounded-md border transition-colors ${
+                      applied ? 'border-accent-strong bg-accent/20' : 'border-line'
                     }`}
                   >
                     <button
-                      className="flex w-full items-center justify-between gap-2 text-left"
-                      onClick={() => pickPromotion(p)}
-                      aria-pressed={selected}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                      onClick={() => toggleExpand(p)}
+                      aria-expanded={expanded}
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium text-ink">
-                          {selected ? '✓ ' : ''}
+                          {applied ? '✓ ' : ''}
                           {p.name}
                         </span>
                         <span className="text-xs text-muted">{rewardText}</span>
                       </span>
-                      <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-ink">
-                        Disponible
+                      <span className="flex shrink-0 items-center gap-2">
+                        {applied && (
+                          <span className="rounded-full bg-accent-strong px-2 py-0.5 text-xs font-medium text-ink">
+                            Aplicada
+                          </span>
+                        )}
+                        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-ink">
+                          Disponible
+                        </span>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className={`text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
                       </span>
                     </button>
 
-                    {selected && p.products.length > 0 && (
-                      <div className="mt-2">
-                        <p className="mb-1 text-xs text-muted">Unidad beneficiada:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.products.map((pp) => {
-                            const on = selectedProductId === pp.id;
-                            const inCart = cartProductIds.has(pp.id);
-                            return (
-                              <button
-                                key={pp.id}
-                                onClick={() => onSelect(p.promotionId, pp.id)}
-                                aria-pressed={on}
-                                className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                                  on
-                                    ? 'border-accent-strong bg-accent text-ink'
-                                    : 'border-line bg-surface text-muted hover:text-ink'
-                                }`}
-                              >
-                                {pp.name} · ${toPesos(pp.priceCents)}
-                                {!inCart && <span className="ml-1 text-[10px]">(no en carrito)</span>}
-                              </button>
-                            );
-                          })}
+                    {expanded && (
+                      <div className="border-t border-line px-3 py-2">
+                        {p.products.length > 0 ? (
+                          <>
+                            <p className="mb-1.5 text-xs text-muted">
+                              Elige el producto beneficiado:
+                            </p>
+                            <ul className="space-y-1">
+                              {p.products.map((pp) => {
+                                const on = chosenProductId === pp.id;
+                                const inCart = cartProductIds.has(pp.id);
+                                return (
+                                  <li key={pp.id}>
+                                    <button
+                                      onClick={() => setChosenProductId(pp.id)}
+                                      aria-pressed={on}
+                                      className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
+                                        on
+                                          ? 'border-accent-strong bg-accent/30 text-ink'
+                                          : 'border-line bg-surface text-ink hover:border-accent-strong'
+                                      }`}
+                                    >
+                                      <span className="flex min-w-0 items-center gap-2">
+                                        <span
+                                          className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                                            on ? 'border-accent-strong' : 'border-line'
+                                          }`}
+                                          aria-hidden
+                                        >
+                                          {on && <span className="h-2 w-2 rounded-full bg-accent-strong" />}
+                                        </span>
+                                        <span className="min-w-0 truncate">{pp.name}</span>
+                                        {!inCart && (
+                                          <span className="shrink-0 text-[10px] text-muted">(no en carrito)</span>
+                                        )}
+                                      </span>
+                                      <span className="shrink-0 tabular-nums text-muted">
+                                        ${toPesos(pp.priceCents)}
+                                      </span>
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted">Esta promoción no tiene productos elegibles.</p>
+                        )}
+
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            className="flex-1"
+                            disabled={!chosenProductId}
+                            onClick={() => onApply(p.promotionId, chosenProductId)}
+                          >
+                            {applied ? 'Actualizar' : 'Aplicar'}
+                          </Button>
+                          {applied && (
+                            <Button variant="ghost" onClick={onRemove}>
+                              Quitar
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -935,7 +1087,9 @@ function LoyaltyDetailModal({
         )}
 
         <div className="mt-5 flex justify-end">
-          <Button onClick={onClose}>Listo</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cerrar
+          </Button>
         </div>
       </div>
     </div>

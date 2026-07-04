@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUser } from '@/lib/user-context';
 import { getSalesReport, type SalesReport } from '@/lib/reports';
+import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+
+const selectClass =
+  'rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink outline-none focus:border-accent-strong';
 
 type Range = 'today' | 'yesterday' | 'custom';
 
@@ -43,28 +47,44 @@ export default function ReportsPage() {
   const [report, setReport] = useState<SalesReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // M7: filtro por sucursal. '' = Todas · 'none' = Sin sucursal · <uuid> = una sucursal.
+  const [branchFilter, setBranchFilter] = useState('');
+  const [branches, setBranches] = useState<Branch[]>([]);
 
-  const load = useCallback(async (r: { from: string; to: string }) => {
-    setLoading(true);
-    setError(null);
-    try {
-      setReport(await getSalesReport({ ...r, tz: new Date().getTimezoneOffset() }));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Error al cargar el reporte');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (r: { from: string; to: string }, branchId: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        setReport(
+          await getSalesReport({
+            ...r,
+            tz: new Date().getTimezoneOffset(),
+            branchId: branchId || undefined,
+          }),
+        );
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : 'Error al cargar el reporte');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
-  // Hoy/Ayer cargan automáticamente; Personalizado espera al botón "Aplicar".
   useEffect(() => {
-    if (!me.isSuperAdmin && range !== 'custom') void load(dayRange(range));
-  }, [me.isSuperAdmin, range, load]);
+    if (me.isSuperAdmin) listBranches().then(setBranches).catch(() => {});
+  }, [me.isSuperAdmin]);
 
-  if (me.isSuperAdmin) {
+  // Hoy/Ayer (y el filtro de sucursal) cargan automáticamente; Personalizado espera "Aplicar".
+  useEffect(() => {
+    if (me.isSuperAdmin && range !== 'custom') void load(dayRange(range), branchFilter);
+  }, [me.isSuperAdmin, range, branchFilter, load]);
+
+  if (!me.isSuperAdmin) {
     return (
       <Card>
-        <p className="text-muted">Los reportes son por negocio.</p>
+        <p className="text-muted">Solo el administrador del negocio accede a los reportes.</p>
       </Card>
     );
   }
@@ -79,7 +99,21 @@ export default function ReportsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold text-ink">Reportes</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Filtrar por sucursal"
+            className={selectClass}
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+          >
+            <option value="">Todas las sucursales</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+            <option value="none">Sin sucursal</option>
+          </select>
           <button className={rangeBtn(range === 'today')} onClick={() => setRange('today')}>
             Hoy
           </button>
@@ -107,7 +141,10 @@ export default function ReportsPage() {
               </label>
               <Input id="to" type="date" value={customTo} min={customFrom} onChange={(e) => setCustomTo(e.target.value)} />
             </div>
-            <Button disabled={invalidCustom} onClick={() => load(customRange(customFrom, customTo))}>
+            <Button
+              disabled={invalidCustom}
+              onClick={() => load(customRange(customFrom, customTo), branchFilter)}
+            >
               Aplicar
             </Button>
           </div>
@@ -156,6 +193,25 @@ export default function ReportsPage() {
               </ul>
             )}
           </Card>
+
+          {report.byBranch && report.byBranch.length > 0 && (
+            <Card>
+              <h2 className="mb-3 text-lg font-semibold text-ink">Por sucursal</h2>
+              <ul className="space-y-1">
+                {report.byBranch.map((b) => (
+                  <li
+                    key={b.branchId ?? 'none'}
+                    className="flex justify-between text-sm"
+                  >
+                    <span className="text-ink">
+                      {b.branchName} <span className="text-muted">· {b.salesCount}</span>
+                    </span>
+                    <span className="font-medium text-ink">${toPesos(b.totalCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-3 text-lg font-semibold text-ink">Por categoría</h2>

@@ -20,8 +20,15 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await login(email, password);
-      router.replace('/dashboard');
+      const s = await login(email, password);
+      // Ruteo por perfil (M7 v2): super admin → admin; operativo → POS o selección de sucursal.
+      if (s.user.isSuperAdmin) {
+        router.replace('/products');
+      } else if (s.mustSelectBranch) {
+        router.replace('/select-branch');
+      } else {
+        router.replace('/pos');
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError('Demasiados intentos. Espera un momento.');

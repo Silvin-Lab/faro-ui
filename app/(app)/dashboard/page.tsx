@@ -12,8 +12,8 @@ export default function DashboardPage() {
         <p className="text-muted">
           Bienvenido a Faro.{' '}
           {user.isSuperAdmin
-            ? 'Eres super admin global: crea negocios desde “Nuevo negocio”.'
-            : 'Gestiona tu cafetería desde el menú lateral.'}
+            ? 'Eres el administrador del negocio: gestiona catálogo, sucursales y usuarios desde el menú.'
+            : 'Opera el punto de venta desde el menú lateral.'}
         </p>
       </Card>
     </div>

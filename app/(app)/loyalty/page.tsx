@@ -229,23 +229,23 @@ export default function LoyaltyPage() {
   }
 
   useEffect(() => {
-    if (me.isSuperAdmin) return;
+    if (!me.isSuperAdmin) return;
     listProducts()
       .then((ps) => setProducts(ps.filter((p) => p.status === 'active')))
       .catch(() => {});
   }, [me.isSuperAdmin]);
 
   useEffect(() => {
-    if (me.isSuperAdmin) return;
+    if (!me.isSuperAdmin) return;
     setPromotions(null);
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me.isSuperAdmin, showArchived]);
 
-  if (me.isSuperAdmin) {
+  if (!me.isSuperAdmin) {
     return (
       <Card>
-        <p className="text-muted">La lealtad se configura por negocio.</p>
+        <p className="text-muted">Solo el administrador del negocio configura la lealtad.</p>
       </Card>
     );
   }

@@ -24,7 +24,7 @@ export default function CategoriesPage() {
   }
 
   useEffect(() => {
-    if (!me.isSuperAdmin) void refresh();
+    if (me.isSuperAdmin) void refresh();
   }, [me.isSuperAdmin]);
 
   async function toggleStatus(c: Category) {
@@ -36,10 +36,10 @@ export default function CategoriesPage() {
     }
   }
 
-  if (me.isSuperAdmin) {
+  if (!me.isSuperAdmin) {
     return (
       <Card>
-        <p className="text-muted">Las categorías se gestionan por negocio.</p>
+        <p className="text-muted">Solo el administrador del negocio gestiona las categorías.</p>
       </Card>
     );
   }
