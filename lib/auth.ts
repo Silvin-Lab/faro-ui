@@ -39,6 +39,10 @@ export const login = (email: string, password: string) =>
 
 export const logout = () => api.post<void>('/auth/logout', {});
 
+// Cambio de contraseña del propio usuario (super admin o de sucursal).
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  api.post<void>('/auth/change-password', { currentPassword, newPassword });
+
 // Fija la sucursal activa (re-emite la cookie con el claim activeBranchId).
 export const selectBranch = (branchId: string) =>
   api.post<{ activeBranchId: string; branch: BranchRef }>('/auth/select-branch', { branchId });

@@ -297,6 +297,9 @@ export default function PosPage() {
           <Button variant="outline" onClick={openRecent}>
             Ventas del día
           </Button>
+          <Button variant="ghost" onClick={() => router.push('/account')}>
+            Cuenta
+          </Button>
           <Button variant="ghost" onClick={() => router.push('/dashboard')}>
             ☰ Menú
           </Button>
@@ -355,9 +358,9 @@ export default function PosPage() {
                   <Avatar
                     name={p.name}
                     imageUrl={p.imageUrl}
-                    fit="contain"
+                    fit="cover"
                     maxInitials={2}
-                    className="aspect-[6/5] w-full bg-bg"
+                    className="aspect-square w-full bg-bg"
                     initialsClass="text-lg"
                   />
                   <div className="p-1.5">

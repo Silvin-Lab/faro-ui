@@ -21,6 +21,8 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
         { href: '/settings', label: 'Negocio' },
       ]
     : [{ href: '/pos', label: 'Punto de venta' }];
+  // "Mi cuenta" (cambiar contraseña) para todos los perfiles.
+  items.push({ href: '/account', label: 'Mi cuenta' });
 
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-line bg-surface p-4">
