@@ -6,6 +6,7 @@ import { login } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { FormField } from '@/components/ui/FormField';
 
 export default function LoginPage() {
@@ -59,9 +60,8 @@ export default function LoginPage() {
             />
           </FormField>
           <FormField label="Contraseña" htmlFor="password">
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
