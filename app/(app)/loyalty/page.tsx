@@ -40,7 +40,7 @@ function ProductChips({
             onClick={() => onToggle(p.id)}
             className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
               on
-                ? 'border-accent-strong bg-accent text-ink'
+                ? 'border-accent-strong bg-accent-soft text-ink'
                 : 'border-line bg-surface text-muted hover:text-ink'
             }`}
           >
@@ -277,7 +277,7 @@ export default function LoyaltyPage() {
         <Button onClick={() => setCreating(true)}>+ Nueva promoción</Button>
       </div>
 
-      <Card className="bg-accent/10">
+      <Card className="bg-accent-soft">
         <p className="text-sm text-ink">
           El programa de lealtad está <span className="font-medium">siempre activo</span> y las visitas
           se <span className="font-medium">comparten entre todas las sucursales</span>. Cada promoción

@@ -48,7 +48,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               href={it.href}
               onClick={onNavigate}
               className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                active ? 'bg-accent text-ink' : 'text-muted hover:bg-bg hover:text-ink'
+                active ? 'bg-accent text-white' : 'text-muted hover:bg-bg hover:text-ink'
               }`}
             >
               {it.label}

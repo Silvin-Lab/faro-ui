@@ -99,7 +99,7 @@ export default function ReportsPage() {
   }
 
   const rangeBtn = (a: boolean) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${a ? 'bg-accent text-ink' : 'bg-bg text-muted'}`;
+    `rounded-lg px-3 py-1.5 text-sm font-medium ${a ? 'bg-accent-soft text-ink' : 'bg-bg text-muted'}`;
   const maxCat = Math.max(1, ...(report?.byCategory.map((c) => c.totalCents) ?? [1]));
   const maxHour = Math.max(1, ...(report?.byHour.map((h) => h.totalCents) ?? [1]));
   const invalidCustom = customFrom > customTo;

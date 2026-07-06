@@ -69,7 +69,7 @@ export default function SelectBranchPage() {
                       disabled={busyId !== null}
                       className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors disabled:opacity-60 ${
                         active
-                          ? 'border-accent-strong bg-accent text-ink'
+                          ? 'border-accent-strong bg-accent-soft text-ink'
                           : 'border-line bg-surface text-ink hover:bg-bg'
                       }`}
                     >
