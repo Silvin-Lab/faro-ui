@@ -37,7 +37,10 @@ export function Avatar({
   imageUrl?: string | null;
   className?: string;
   initialsClass?: string;
-  fit?: 'cover' | 'contain'; // 'contain' = imagen completa; 'cover' = rellena y recorta
+  // 'contain' = imagen completa; 'cover' = rellena y recorta; 'blur' = imagen
+  // completa sobre un fondo difuminado de la misma foto (estilo marketplace).
+  // El contenedor conserva SIEMPRE el tamaño que dicte className.
+  fit?: 'cover' | 'contain' | 'blur';
   maxInitials?: number;
 }) {
   const src = imageSrc(imageUrl ?? undefined);
@@ -50,6 +53,18 @@ export function Avatar({
 
   // Si hay imagen y carga bien, se muestra; si falla (404/rota), cae a iniciales.
   if (src && !failed) {
+    if (fit === 'blur') {
+      return (
+        <div className={`relative overflow-hidden ${className}`}>
+          {/* Fondo: la misma foto difuminada llenando el cuadro */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-md" />
+          {/* Frente: la foto completa, sin recortar ni deformar */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" onError={() => setFailed(true)} className="relative h-full w-full object-contain" />
+        </div>
+      );
+    }
     // eslint-disable-next-line @next/next/no-img-element
     return (
       <img src={src} alt="" onError={() => setFailed(true)} className={`${fit === 'contain' ? 'object-contain' : 'object-cover'} ${className}`} />

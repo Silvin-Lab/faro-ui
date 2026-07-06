@@ -372,7 +372,7 @@ export default function PosPage() {
                   <Avatar
                     name={p.name}
                     imageUrl={p.imageUrl}
-                    fit="cover"
+                    fit="blur"
                     maxInitials={2}
                     className="h-28 w-full bg-bg"
                     initialsClass="text-lg"
@@ -1132,7 +1132,7 @@ function QuantityModal({
         <Avatar
           name={product.name}
           imageUrl={product.imageUrl}
-          fit="contain"
+          fit="blur"
           maxInitials={2}
           className="mx-auto mb-2 h-20 w-20 overflow-hidden rounded-md border border-line bg-bg"
           initialsClass="text-lg"
