@@ -8,19 +8,25 @@ import type { User } from '@/lib/auth';
 export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => void }) {
   const pathname = usePathname();
 
-  // Menú por perfil (M7 v2 · §8): el super admin administra el negocio; el usuario de
-  // sucursal solo opera el POS.
-  const items = user.isSuperAdmin
-    ? [
-        { href: '/products', label: 'Productos' },
-        { href: '/categories', label: 'Categorías' },
-        { href: '/loyalty', label: 'Lealtad' },
-        { href: '/users', label: 'Usuarios' },
-        { href: '/branches', label: 'Sucursales' },
-        { href: '/reports', label: 'Reportes' },
-        { href: '/settings', label: 'Negocio' },
-      ]
-    : [{ href: '/pos', label: 'Punto de venta' }];
+  // Menú por rol (M8): el super admin administra el negocio; el admin de sucursal opera el
+  // POS y ve los reportes de su sucursal; cajero/barista solo operan el POS.
+  const items =
+    user.role === 'super_admin'
+      ? [
+          { href: '/products', label: 'Productos' },
+          { href: '/categories', label: 'Categorías' },
+          { href: '/loyalty', label: 'Lealtad' },
+          { href: '/users', label: 'Usuarios' },
+          { href: '/branches', label: 'Sucursales' },
+          { href: '/reports', label: 'Reportes' },
+          { href: '/settings', label: 'Negocio' },
+        ]
+      : user.role === 'branch_admin'
+        ? [
+            { href: '/pos', label: 'Punto de venta' },
+            { href: '/reports', label: 'Reportes' },
+          ]
+        : [{ href: '/pos', label: 'Punto de venta' }];
   // "Mi cuenta" (cambiar contraseña) para todos los perfiles.
   items.push({ href: '/account', label: 'Mi cuenta' });
 

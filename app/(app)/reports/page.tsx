@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useUser } from '@/lib/user-context';
+import { useUser, useSession } from '@/lib/user-context';
 import { getSalesReport, type SalesReport } from '@/lib/reports';
 import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
@@ -41,6 +41,14 @@ function customRange(fromDate: string, toDate: string) {
 
 export default function ReportsPage() {
   const me = useUser();
+  const session = useSession();
+  // M8: acceden super_admin (con filtro y "Por sucursal") y branch_admin (scoped por el servidor).
+  const isSuperAdmin = me.role === 'super_admin';
+  const isBranchAdmin = me.role === 'branch_admin';
+  const canView = isSuperAdmin || isBranchAdmin;
+  // Nombre de la sucursal activa (para el encabezado del branch_admin).
+  const activeBranchName =
+    session.branches.find((b) => b.id === session.activeBranchId)?.name ?? 'Mi sucursal';
   const [range, setRange] = useState<Range>('today');
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
@@ -72,19 +80,20 @@ export default function ReportsPage() {
     [],
   );
 
+  // Solo el super admin filtra por sucursal (branch_admin queda scoped por el servidor).
   useEffect(() => {
-    if (me.isSuperAdmin) listBranches().then(setBranches).catch(() => {});
-  }, [me.isSuperAdmin]);
+    if (isSuperAdmin) listBranches().then(setBranches).catch(() => {});
+  }, [isSuperAdmin]);
 
   // Hoy/Ayer (y el filtro de sucursal) cargan automáticamente; Personalizado espera "Aplicar".
   useEffect(() => {
-    if (me.isSuperAdmin && range !== 'custom') void load(dayRange(range), branchFilter);
-  }, [me.isSuperAdmin, range, branchFilter, load]);
+    if (canView && range !== 'custom') void load(dayRange(range), branchFilter);
+  }, [canView, range, branchFilter, load]);
 
-  if (!me.isSuperAdmin) {
+  if (!canView) {
     return (
       <Card>
-        <p className="text-muted">Solo el administrador del negocio accede a los reportes.</p>
+        <p className="text-muted">No tienes acceso a los reportes.</p>
       </Card>
     );
   }
@@ -98,22 +107,26 @@ export default function ReportsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-ink">Reportes</h1>
+        <h1 className="text-2xl font-semibold text-ink">
+          {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
+        </h1>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="Filtrar por sucursal"
-            className={selectClass}
-            value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-          >
-            <option value="">Todas las sucursales</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-            <option value="none">Sin sucursal</option>
-          </select>
+          {isSuperAdmin && (
+            <select
+              aria-label="Filtrar por sucursal"
+              className={selectClass}
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+            >
+              <option value="">Todas las sucursales</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+              <option value="none">Sin sucursal</option>
+            </select>
+          )}
           <button className={rangeBtn(range === 'today')} onClick={() => setRange('today')}>
             Hoy
           </button>
@@ -194,7 +207,7 @@ export default function ReportsPage() {
             )}
           </Card>
 
-          {report.byBranch && report.byBranch.length > 0 && (
+          {isSuperAdmin && report.byBranch && report.byBranch.length > 0 && (
             <Card>
               <h2 className="mb-3 text-lg font-semibold text-ink">Por sucursal</h2>
               <ul className="space-y-1">

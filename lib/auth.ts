@@ -3,12 +3,19 @@ import { api } from './api';
 // Referencia ligera de sucursal (membresías y sesión). El CRUD completo vive en lib/branches.
 export type BranchRef = { id: string; name: string };
 
+// M8: rol del usuario. super_admin administra el negocio; los demás operan una sucursal.
+export type Role = 'super_admin' | 'branch_admin' | 'cashier' | 'barista';
+// Roles asignables a un usuario de sucursal (no incluye super_admin).
+export type BranchRole = 'branch_admin' | 'cashier' | 'barista';
+
 export type User = {
   id: string;
   tenantId: string | null;
   email: string;
   name: string;
   isSuperAdmin: boolean;
+  // M8: rol explícito (viene en /auth/me, /auth/login y GET /users).
+  role: Role;
   status: string;
   createdAt: string;
   // M7 v2: membresías del usuario (M:N). Presente en el listado de /users.
@@ -49,16 +56,25 @@ export const selectBranch = (branchId: string) =>
 
 export const listUsers = () => api.get<{ items: User[] }>('/users').then((r) => r.items);
 
+// M8: acepta role. Si role='super_admin' NO se envían branchIds (el super admin es global).
 export const createUser = (input: {
   email: string;
   password: string;
   name: string;
+  role: Role;
   branchIds: string[];
-}) => api.post<{ user: User }>('/users', input);
+}) => {
+  const { branchIds, ...rest } = input;
+  const body = input.role === 'super_admin' ? rest : { ...rest, branchIds };
+  return api.post<{ user: User }>('/users', body);
+};
 
 // branchIds reemplaza el set completo de membresías del usuario.
-export const updateUser = (id: string, input: { branchIds?: string[]; name?: string }) =>
-  api.patch<{ user: User }>(`/users/${id}`, input);
+// M8: role solo puede cambiar entre los roles de sucursal (branch_admin/cashier/barista).
+export const updateUser = (
+  id: string,
+  input: { branchIds?: string[]; name?: string; role?: BranchRole },
+) => api.patch<{ user: User }>(`/users/${id}`, input);
 
 export const createTenant = (input: {
   name: string;
