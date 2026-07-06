@@ -271,10 +271,10 @@ export default function PosPage() {
 
   const railCard = (a: boolean) => `rounded-lg p-1 transition-colors ${a ? 'bg-accent' : 'hover:bg-bg'}`;
   const tabItem = (a: boolean) =>
-    `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${a ? 'bg-accent-soft text-ink' : 'bg-bg text-muted'}`;
+    `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${a ? 'bg-accent text-ink' : 'bg-bg text-muted'}`;
   const payBtn = (a: boolean) =>
     `rounded-lg border p-4 text-center text-base font-semibold transition-colors ${
-      a ? 'border-accent-strong bg-accent-soft text-ink' : 'border-line bg-surface text-muted hover:text-ink'
+      a ? 'border-accent-strong bg-accent text-ink' : 'border-line bg-surface text-muted hover:text-ink'
     }`;
 
   return (
@@ -469,7 +469,7 @@ export default function PosPage() {
                 </div>
 
                 {selectedPromotion ? (
-                  <div className="rounded-md border border-accent-strong bg-accent-soft px-2 py-1.5">
+                  <div className="rounded-md border border-accent-strong bg-accent/20 px-2 py-1.5">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="min-w-0 truncate font-medium text-ink">
                         ✓ {selectedPromotion.name}
@@ -510,7 +510,7 @@ export default function PosPage() {
               </div>
             ) : (
               <button
-                className="flex w-full items-center justify-center gap-2 rounded-md border border-accent-strong bg-accent px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-accent-strong bg-accent px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-accent-strong"
                 onClick={() => setCustomerModal(true)}
               >
                 <svg
@@ -548,7 +548,7 @@ export default function PosPage() {
             </div>
           )}
           <div
-            className={`${discountCents > 0 ? 'mt-1' : 'mt-4'} flex items-center justify-between rounded-lg bg-accent-soft px-4 py-2`}
+            className={`${discountCents > 0 ? 'mt-1' : 'mt-4'} flex items-center justify-between rounded-lg bg-accent/25 px-4 py-2`}
           >
             <span className="text-sm font-medium uppercase tracking-wide text-ink">Total</span>
             <span className="text-2xl font-bold text-ink">${toPesos(totalCents)}</span>
@@ -575,7 +575,7 @@ export default function PosPage() {
                       onClick={() => setPaid(String(c / 100))}
                       className={`rounded-lg border px-2 py-2 text-sm font-semibold transition-colors ${
                         paidCents === c
-                          ? 'border-accent-strong bg-accent-soft text-ink'
+                          ? 'border-accent-strong bg-accent text-ink'
                           : 'border-line bg-bg text-ink hover:border-accent-strong'
                       }`}
                     >
@@ -787,7 +787,7 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
                     <li key={c.id} className="even:bg-bg">
                       <button
                         onClick={() => onSelect(c)}
-                        className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm transition-colors hover:bg-accent-soft"
+                        className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm transition-colors hover:bg-accent/20"
                       >
                         <svg
                           width="18"
@@ -988,7 +988,7 @@ function LoyaltyDetailModal({
                   <div
                     key={p.promotionId}
                     className={`rounded-md border transition-colors ${
-                      applied ? 'border-accent-strong bg-accent-soft' : 'border-line'
+                      applied ? 'border-accent-strong bg-accent/20' : 'border-line'
                     }`}
                   >
                     <button
@@ -1005,11 +1005,11 @@ function LoyaltyDetailModal({
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         {applied && (
-                          <span className="rounded-full bg-accent-strong px-2 py-0.5 text-xs font-medium text-white">
+                          <span className="rounded-full bg-accent-strong px-2 py-0.5 text-xs font-medium text-ink">
                             Aplicada
                           </span>
                         )}
-                        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-white">
+                        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-ink">
                           Disponible
                         </span>
                         <svg
@@ -1047,7 +1047,7 @@ function LoyaltyDetailModal({
                                       aria-pressed={on}
                                       className={`flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
                                         on
-                                          ? 'border-accent-strong bg-accent-soft text-ink'
+                                          ? 'border-accent-strong bg-accent/30 text-ink'
                                           : 'border-line bg-surface text-ink hover:border-accent-strong'
                                       }`}
                                     >
@@ -1148,7 +1148,7 @@ function QuantityModal({
             −
           </button>
           <span className="w-12 text-3xl font-bold text-ink">{qty}</span>
-          <button onClick={() => setQty((q) => q + 1)} className="h-12 w-12 rounded-lg bg-accent text-2xl text-white">
+          <button onClick={() => setQty((q) => q + 1)} className="h-12 w-12 rounded-lg bg-accent text-2xl text-ink">
             +
           </button>
         </div>

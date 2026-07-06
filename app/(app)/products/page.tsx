@@ -86,7 +86,7 @@ export default function ProductsPage() {
                     <span className="truncate">{p.name}</span>
                     <span
                       className={`rounded px-2 py-0.5 text-xs ${
-                        p.status === 'active' ? 'bg-accent text-white' : 'bg-bg text-muted'
+                        p.status === 'active' ? 'bg-accent text-ink' : 'bg-bg text-muted'
                       }`}
                     >
                       {p.status}

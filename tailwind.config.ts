@@ -1,20 +1,19 @@
 import type { Config } from 'tailwindcss';
 
-// Paleta Faro azul (ver faro/.arete/foundations/design-system.md).
+// Paleta BrightPOS (ver faro/.arete/foundations/design-system.md v0.3).
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        // accent azul: texto blanco encima; soft para selección ligera (texto ink).
-        accent: { DEFAULT: '#1668C7', strong: '#0F4C9A', soft: '#DCEAF8', warm: '#F7C09B' },
-        bg: '#F1F5F6',
+        accent: { DEFAULT: '#C4E456', strong: '#B2D63F' }, // lime, texto oscuro encima
+        bg: '#F4F4F2',
         surface: '#FFFFFF',
-        ink: '#1C2426',
-        muted: '#636D6D',
-        line: '#D5E0E3',
-        danger: '#D33A2C',
-        success: '#1B7F4B',
+        ink: '#1A1A1A',
+        muted: '#8C8C8C',
+        line: '#E6E6E4',
+        danger: '#C0392B',
+        success: '#2E7D32',
       },
       borderRadius: { md: '12px', lg: '16px' },
     },

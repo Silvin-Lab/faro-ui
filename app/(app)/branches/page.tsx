@@ -198,7 +198,7 @@ export default function BranchesPage() {
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          inactive ? 'bg-bg text-muted' : 'bg-accent text-white'
+                          inactive ? 'bg-bg text-muted' : 'bg-accent text-ink'
                         }`}
                       >
                         {inactive ? 'Inactiva' : 'Activa'}

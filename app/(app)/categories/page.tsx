@@ -64,7 +64,7 @@ export default function CategoriesPage() {
                   <span className="truncate">{c.name}</span>
                   <span
                     className={`rounded px-2 py-0.5 text-xs ${
-                      c.status === 'active' ? 'bg-accent text-white' : 'bg-bg text-muted'
+                      c.status === 'active' ? 'bg-accent text-ink' : 'bg-bg text-muted'
                     }`}
                   >
                     {c.status}

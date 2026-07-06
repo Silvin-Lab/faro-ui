@@ -46,7 +46,7 @@ function BranchChecklist({
           <label
             key={b.id}
             className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
-              on ? 'border-accent-strong bg-accent-soft text-ink' : 'border-line bg-surface text-ink'
+              on ? 'border-accent-strong bg-accent text-ink' : 'border-line bg-surface text-ink'
             }`}
           >
             <input type="checkbox" checked={on} onChange={() => onToggle(b.id)} className="accent-current" />
