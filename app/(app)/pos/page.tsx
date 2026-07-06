@@ -188,12 +188,10 @@ export default function PosPage() {
   }
   // Cierra el modal de cantidad y limpia el buscador (para volver a ver todos
   // los productos sin la búsqueda anterior pegada).
-  // Al cerrar el modal de cantidad se limpia el buscador pero se CONSERVA la
-  // categoría activa; a "Todas" solo se vuelve al terminar o cancelar la venta
-  // completa (resetSale).
+  // Al cerrar el modal de cantidad se CONSERVAN la categoría activa y la
+  // búsqueda; todo se limpia solo al terminar o cancelar la venta (resetSale).
   function closeQty() {
     setQtyModal(null);
-    setSearch('');
   }
   function removeLine(p: Product) {
     setCart((c) => {
