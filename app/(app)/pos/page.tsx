@@ -331,12 +331,24 @@ export default function PosPage() {
 
         {/* Productos */}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
-          <Input
-            placeholder="Buscar producto…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="mb-3"
-          />
+          <div className="relative mb-3">
+            <Input
+              placeholder="Buscar producto…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={search ? 'pr-10' : ''}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <div className="mb-3 flex gap-2 overflow-x-auto md:hidden">
             <button className={tabItem(activeCat === 'all')} onClick={() => setActiveCat('all')}>
               Todas
