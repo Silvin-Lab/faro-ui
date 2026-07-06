@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/user-context';
-import { selectBranch } from '@/lib/auth';
+import { selectBranch, roleLandingPath } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 
@@ -23,7 +23,8 @@ export default function SelectBranchPage() {
     try {
       await selectBranch(id);
       // Recarga completa: el layout vuelve a /auth/me con la sucursal activa ya fijada.
-      window.location.assign('/pos');
+      // Aterrizaje por rol: branch_admin → /reports; cashier/barista → /pos.
+      window.location.assign(roleLandingPath(session.user.role));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'No se pudo seleccionar la sucursal');
       setBusyId(null);

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { login } from '@/lib/auth';
+import { login, postLoginPath } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -22,14 +22,9 @@ export default function LoginPage() {
     setError(null);
     try {
       const s = await login(email, password);
-      // Ruteo por perfil (M7 v2): super admin → admin; operativo → POS o selección de sucursal.
-      if (s.user.isSuperAdmin) {
-        router.replace('/products');
-      } else if (s.mustSelectBranch) {
-        router.replace('/select-branch');
-      } else {
-        router.replace('/pos');
-      }
+      // Ruteo por rol (M8): super_admin/branch_admin → /reports; cashier/barista → /pos;
+      // operativo con >1 sucursal sin activa → /select-branch (y de ahí a su aterrizaje por rol).
+      router.replace(postLoginPath(s));
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError('Demasiados intentos. Espera un momento.');

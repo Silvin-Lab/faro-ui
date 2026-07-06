@@ -38,6 +38,19 @@ export type Session = {
   mustSelectBranch: boolean;
 };
 
+// Destino final para un usuario con la sucursal ya resuelta (post-login o post select-branch).
+// super_admin y branch_admin aterrizan en Reportes; cashier/barista en el POS.
+export function roleLandingPath(role: Role): string {
+  return role === 'super_admin' || role === 'branch_admin' ? '/reports' : '/pos';
+}
+
+// Destino tras autenticar: si el usuario operativo debe elegir sucursal, primero /select-branch;
+// si no, el aterrizaje por rol. (El super admin nunca tiene mustSelectBranch.)
+export function postLoginPath(session: Session): string {
+  if (!session.user.isSuperAdmin && session.mustSelectBranch) return '/select-branch';
+  return roleLandingPath(session.user.role);
+}
+
 // /auth/me y /auth/login devuelven la sesión completa.
 export const getMe = () => api.get<Session>('/auth/me');
 

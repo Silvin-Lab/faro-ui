@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 const selectClass =
-  'rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink outline-none focus:border-accent-strong';
+  'min-h-[40px] w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong sm:w-auto';
 
 type Range = 'today' | 'yesterday' | 'custom';
 
@@ -99,18 +99,20 @@ export default function ReportsPage() {
   }
 
   const rangeBtn = (a: boolean) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${a ? 'bg-accent text-ink' : 'bg-bg text-muted'}`;
+    `min-h-[40px] flex-1 rounded-lg px-3 py-1.5 text-sm font-medium sm:flex-none ${
+      a ? 'bg-accent text-ink' : 'bg-bg text-muted'
+    }`;
   const maxCat = Math.max(1, ...(report?.byCategory.map((c) => c.totalCents) ?? [1]));
   const maxHour = Math.max(1, ...(report?.byHour.map((h) => h.totalCents) ?? [1]));
   const invalidCustom = customFrom > customTo;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-ink">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h1 className="min-w-0 break-words text-2xl font-semibold text-ink">
           {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
         </h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {isSuperAdmin && (
             <select
               aria-label="Filtrar por sucursal"
@@ -127,28 +129,30 @@ export default function ReportsPage() {
               <option value="none">Sin sucursal</option>
             </select>
           )}
-          <button className={rangeBtn(range === 'today')} onClick={() => setRange('today')}>
-            Hoy
-          </button>
-          <button className={rangeBtn(range === 'yesterday')} onClick={() => setRange('yesterday')}>
-            Ayer
-          </button>
-          <button className={rangeBtn(range === 'custom')} onClick={() => setRange('custom')}>
-            Personalizado
-          </button>
+          <div className="flex gap-2">
+            <button className={rangeBtn(range === 'today')} onClick={() => setRange('today')}>
+              Hoy
+            </button>
+            <button className={rangeBtn(range === 'yesterday')} onClick={() => setRange('yesterday')}>
+              Ayer
+            </button>
+            <button className={rangeBtn(range === 'custom')} onClick={() => setRange('custom')}>
+              Personalizado
+            </button>
+          </div>
         </div>
       </div>
 
       {range === 'custom' && (
         <Card>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="w-full sm:w-auto">
               <label htmlFor="from" className="mb-1 block text-sm font-medium text-ink">
                 Desde
               </label>
               <Input id="from" type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)} />
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <label htmlFor="to" className="mb-1 block text-sm font-medium text-ink">
                 Hasta
               </label>
@@ -156,6 +160,7 @@ export default function ReportsPage() {
             </div>
             <Button
               disabled={invalidCustom}
+              className="min-h-[40px] w-full sm:w-auto"
               onClick={() => load(customRange(customFrom, customTo), branchFilter)}
             >
               Aplicar
@@ -181,11 +186,15 @@ export default function ReportsPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <p className="text-sm text-muted">Total vendido</p>
-              <p className="text-4xl font-bold text-ink">${toPesos(report.totalCents)}</p>
+              <p className="break-words text-3xl font-bold tabular-nums text-ink sm:text-4xl">
+                ${toPesos(report.totalCents)}
+              </p>
             </Card>
             <Card>
               <p className="text-sm text-muted">Ventas</p>
-              <p className="text-4xl font-bold text-ink">{report.salesCount}</p>
+              <p className="break-words text-3xl font-bold tabular-nums text-ink sm:text-4xl">
+                {report.salesCount}
+              </p>
             </Card>
           </div>
 
@@ -196,11 +205,11 @@ export default function ReportsPage() {
             ) : (
               <ul className="space-y-1">
                 {report.byPaymentMethod.map((p) => (
-                  <li key={p.method} className="flex justify-between text-sm">
-                    <span className="text-ink">
+                  <li key={p.method} className="flex justify-between gap-2 text-sm">
+                    <span className="min-w-0 truncate text-ink">
                       {p.method === 'card' ? 'Tarjeta' : 'Efectivo'} <span className="text-muted">· {p.count}</span>
                     </span>
-                    <span className="font-medium text-ink">${toPesos(p.totalCents)}</span>
+                    <span className="shrink-0 font-medium tabular-nums text-ink">${toPesos(p.totalCents)}</span>
                   </li>
                 ))}
               </ul>
@@ -214,12 +223,12 @@ export default function ReportsPage() {
                 {report.byBranch.map((b) => (
                   <li
                     key={b.branchId ?? 'none'}
-                    className="flex justify-between text-sm"
+                    className="flex justify-between gap-2 text-sm"
                   >
-                    <span className="text-ink">
+                    <span className="min-w-0 truncate text-ink">
                       {b.branchName} <span className="text-muted">· {b.salesCount}</span>
                     </span>
-                    <span className="font-medium text-ink">${toPesos(b.totalCents)}</span>
+                    <span className="shrink-0 font-medium tabular-nums text-ink">${toPesos(b.totalCents)}</span>
                   </li>
                 ))}
               </ul>
@@ -234,11 +243,11 @@ export default function ReportsPage() {
               <ul className="space-y-2">
                 {report.byCategory.map((c) => (
                   <li key={c.categoryName}>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-ink">
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate text-ink">
                         {c.categoryName} <span className="text-muted">· {c.quantity} u</span>
                       </span>
-                      <span className="font-medium text-ink">${toPesos(c.totalCents)}</span>
+                      <span className="shrink-0 font-medium tabular-nums text-ink">${toPesos(c.totalCents)}</span>
                     </div>
                     <div className="mt-1 h-2 rounded bg-bg">
                       <div className="h-2 rounded bg-accent" style={{ width: `${(c.totalCents / maxCat) * 100}%` }} />
@@ -257,11 +266,11 @@ export default function ReportsPage() {
               <ul className="space-y-1">
                 {report.byHour.map((h) => (
                   <li key={h.hour} className="flex items-center gap-2 text-xs">
-                    <span className="w-12 shrink-0 text-muted">{String(h.hour).padStart(2, '0')}:00</span>
-                    <div className="h-3 flex-1 rounded bg-bg">
+                    <span className="w-10 shrink-0 tabular-nums text-muted">{String(h.hour).padStart(2, '0')}h</span>
+                    <div className="h-3 min-w-0 flex-1 rounded bg-bg">
                       <div className="h-3 rounded bg-accent" style={{ width: `${(h.totalCents / maxHour) * 100}%` }} />
                     </div>
-                    <span className="w-16 shrink-0 text-right text-ink">${toPesos(h.totalCents)}</span>
+                    <span className="w-16 shrink-0 text-right tabular-nums text-ink">${toPesos(h.totalCents)}</span>
                   </li>
                 ))}
               </ul>
