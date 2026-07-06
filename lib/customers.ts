@@ -23,3 +23,9 @@ export const searchCustomers = (q: string, limit = 20) =>
 
 export const createCustomer = (input: { phone: string; firstName: string; lastName: string }) =>
   api.post<{ customer: Customer }>('/customers', input).then((r) => r.customer);
+
+// Fija el contador de visitas del ciclo actual (visits ≥ 0) y sube el acumulado de por
+// vida al menos a ese valor (nunca baja). Migración de tarjetas físicas de lealtad.
+// Solo super_admin / branch_admin (el backend responde 403 en caso contrario).
+export const setCustomerVisits = (id: string, visits: number) =>
+  api.patch<{ customer: Customer }>(`/customers/${id}/visits`, { visits }).then((r) => r.customer);

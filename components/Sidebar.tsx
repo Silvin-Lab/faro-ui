@@ -17,6 +17,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
           { href: '/categories', label: 'Categorías' },
           { href: '/loyalty', label: 'Lealtad' },
           { href: '/users', label: 'Usuarios' },
+          { href: '/customers', label: 'Clientes' },
           { href: '/branches', label: 'Sucursales' },
           { href: '/reports', label: 'Reportes' },
           { href: '/settings', label: 'Negocio' },
@@ -24,6 +25,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
       : user.role === 'branch_admin'
         ? [
             { href: '/pos', label: 'Punto de venta' },
+            { href: '/customers', label: 'Clientes' },
             { href: '/reports', label: 'Reportes' },
           ]
         : [{ href: '/pos', label: 'Punto de venta' }];
