@@ -1,6 +1,7 @@
 import { api } from './api';
+import type { PaymentMethod } from './sales';
 
-export type PaymentBreakdown = { method: 'cash' | 'card'; count: number; totalCents: number };
+export type PaymentBreakdown = { method: PaymentMethod; count: number; totalCents: number };
 export type CategoryBreakdown = { categoryName: string; quantity: number; totalCents: number };
 export type HourBreakdown = { hour: number; count: number; totalCents: number };
 // M7: corte por sucursal. branchId null = bucket "Sin sucursal".

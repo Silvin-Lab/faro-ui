@@ -9,7 +9,20 @@ export type SaleItem = {
   lineTotalCents: number;
 };
 
-export type PaymentMethod = 'cash' | 'card';
+export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'didi';
+
+// Etiqueta canónica por método de pago. Fuente única para toda la UI
+// (panel de cobro, ticket, historial, reportes) — no duplicar ternarios.
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Efectivo',
+  card: 'Tarjeta',
+  transfer: 'Transferencia',
+  didi: 'Didi',
+};
+
+// Etiqueta legible del método; tolera valores desconocidos (backends previos).
+export const paymentMethodLabel = (m: PaymentMethod | string): string =>
+  PAYMENT_METHOD_LABELS[m as PaymentMethod] ?? String(m);
 
 export type Sale = {
   id: string;

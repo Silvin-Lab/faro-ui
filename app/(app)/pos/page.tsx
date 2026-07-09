@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, useSession } from '@/lib/user-context';
 import { listProducts, toPesos, toCents, type Product } from '@/lib/products';
 import { listCategories, type Category } from '@/lib/categories';
-import { createSale, listSales, getSale, type Sale, type PaymentMethod } from '@/lib/sales';
+import { createSale, listSales, getSale, paymentMethodLabel, type Sale, type PaymentMethod } from '@/lib/sales';
 import { findCustomerByPhone, searchCustomers, createCustomer, type Customer } from '@/lib/customers';
 import {
   getCustomerLoyaltyStatus,
@@ -21,6 +21,25 @@ type CartLine = { product: Product; qty: number };
 
 // Denominaciones de billete disponibles (pesos).
 const DENOMS = [10, 20, 50, 100, 200, 500];
+
+// Emoji por método de pago (para los botones del panel de cobro).
+const PAY_EMOJI: Record<PaymentMethod, string> = {
+  cash: '💵',
+  card: '💳',
+  transfer: '🏦',
+  didi: '🚗',
+};
+
+// Frase para el aviso de cobro de métodos sin captura de monto (no efectivo).
+const PAY_CHARGE_PHRASE: Record<PaymentMethod, string> = {
+  cash: '',
+  card: 'con tarjeta',
+  transfer: 'por transferencia',
+  didi: 'por Didi',
+};
+
+// Métodos que se agrupan bajo el botón "Otro ▾" en el panel de cobro.
+const OTHER_METHODS: PaymentMethod[] = ['transfer', 'didi'];
 
 // Sugerencias de "monto recibido" a partir del total: incluye el exacto, los
 // redondeos a $50/$100, los billetes que cubren de un solo y múltiplos de $100.
@@ -58,6 +77,7 @@ export default function PosPage() {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [otherOpen, setOtherOpen] = useState(false); // desplegable "Otro ▾" abierto
   const [paid, setPaid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -205,6 +225,7 @@ export default function PosPage() {
     setPaid('');
     setError(null);
     setMethod('cash');
+    setOtherOpen(false);
     setCustomer(null);
     setSelectedPromotionId(null);
     setSelectedProductId(null);
@@ -217,7 +238,15 @@ export default function PosPage() {
     setActiveCat('all');
   }
 
-  const canCharge = lines.length > 0 && (method === 'card' || paidCents >= totalCents);
+  // Solo 'cash' captura monto recibido; el resto (tarjeta/transferencia/didi) es
+  // pago exacto y siempre puede cobrarse con carrito no vacío.
+  const canCharge = lines.length > 0 && (method !== 'cash' || paidCents >= totalCents);
+
+  // Selecciona el método y cierra el desplegable "Otro".
+  function selectMethod(m: PaymentMethod) {
+    setMethod(m);
+    setOtherOpen(false);
+  }
 
   async function charge() {
     setSubmitting(true);
@@ -226,7 +255,7 @@ export default function PosPage() {
       const sale = await createSale(
         lines.map((l) => ({ productId: l.product.id, quantity: l.qty })),
         method,
-        method === 'card' ? 0 : paidCents,
+        method === 'cash' ? paidCents : 0,
         customer?.id ?? null,
         { promotionId: selectedPromotion?.promotionId ?? null, promotionProductId: selectedProductId },
       );
@@ -555,14 +584,43 @@ export default function PosPage() {
           </div>
 
           <p className="mb-2 mt-4 text-sm font-medium text-ink">Forma de pago</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button className={payBtn(method === 'cash')} onClick={() => setMethod('cash')}>
+          <div className="grid grid-cols-3 gap-2">
+            <button className={payBtn(method === 'cash')} onClick={() => selectMethod('cash')}>
               💵 Efectivo
             </button>
-            <button className={payBtn(method === 'card')} onClick={() => setMethod('card')}>
+            <button className={payBtn(method === 'card')} onClick={() => selectMethod('card')}>
               💳 Tarjeta
             </button>
+            {/* "Otro ▾": agrupa transferencia y didi. Al haber uno seleccionado,
+                el botón muestra la selección activa (estilo seleccionado) y
+                vuelve a abrir las opciones al tocarlo. */}
+            <button
+              className={payBtn(OTHER_METHODS.includes(method))}
+              onClick={() => setOtherOpen((o) => !o)}
+              aria-expanded={otherOpen}
+              aria-haspopup="true"
+            >
+              <span className="block truncate">
+                {OTHER_METHODS.includes(method)
+                  ? `${PAY_EMOJI[method]} ${paymentMethodLabel(method)}`
+                  : 'Otro ▾'}
+              </span>
+            </button>
           </div>
+          {/* Desplegable inline: se expande debajo del grid (sin popover para
+              evitar recortes por el overflow del panel de cobro) y se cierra al
+              elegir. Targets grandes para táctil (iPad/celular). */}
+          {otherOpen && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {OTHER_METHODS.map((m) => (
+                <button key={m} className={payBtn(method === m)} onClick={() => selectMethod(m)}>
+                  <span className="block truncate">
+                    {PAY_EMOJI[m]} {paymentMethodLabel(m)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {method === 'cash' && (
             <div className="mt-3 space-y-2">
@@ -605,9 +663,10 @@ export default function PosPage() {
               </div>
             </div>
           )}
-          {method === 'card' && (
+          {method !== 'cash' && (
             <p className="mt-3 rounded-lg bg-bg p-4 text-center text-sm text-muted">
-              Se cobrará <span className="font-semibold text-ink">${toPesos(totalCents)}</span> con tarjeta.
+              Se cobrará <span className="font-semibold text-ink">${toPesos(totalCents)}</span>{' '}
+              {PAY_CHARGE_PHRASE[method]}.
             </p>
           )}
 
@@ -1235,7 +1294,7 @@ function TicketModal({ sale, cashier, onClose }: { sale: Sale; cashier: string; 
           </div>
           <div className="flex justify-between">
             <span>Pago</span>
-            <span>{sale.paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}</span>
+            <span>{paymentMethodLabel(sale.paymentMethod)}</span>
           </div>
           {sale.customerName && (
             <div className="flex justify-between">
@@ -1290,7 +1349,7 @@ function RecentModal({ sales, onOpen, onClose }: { sales: Sale[]; onOpen: (id: s
                   >
                     <span className="text-muted">
                       {new Date(s.createdAt).toLocaleTimeString()} ·{' '}
-                      {s.paymentMethod === 'card' ? 'Tarjeta' : 'Efectivo'}
+                      {paymentMethodLabel(s.paymentMethod)}
                     </span>
                     <span className="font-medium text-ink">${toPesos(s.totalCents)}</span>
                   </button>

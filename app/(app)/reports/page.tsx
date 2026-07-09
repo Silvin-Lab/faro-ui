@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUser, useSession } from '@/lib/user-context';
 import { getSalesReport, type SalesReport } from '@/lib/reports';
+import { paymentMethodLabel } from '@/lib/sales';
 import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
 import { ApiError } from '@/lib/api';
@@ -207,7 +208,7 @@ export default function ReportsPage() {
                 {report.byPaymentMethod.map((p) => (
                   <li key={p.method} className="flex justify-between gap-2 text-sm">
                     <span className="min-w-0 truncate text-ink">
-                      {p.method === 'card' ? 'Tarjeta' : 'Efectivo'} <span className="text-muted">· {p.count}</span>
+                      {paymentMethodLabel(p.method)} <span className="text-muted">· {p.count}</span>
                     </span>
                     <span className="shrink-0 font-medium tabular-nums text-ink">${toPesos(p.totalCents)}</span>
                   </li>
