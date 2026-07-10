@@ -14,6 +14,15 @@ export type SupplyStock = {
   stockBase: number;
 };
 
+// Categoría de insumo: clasifica los insumos del catálogo. Espejo de las
+// categorías de gasto (sin imagen). El inventario no depende de la categoría.
+export type SupplyCategory = {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  sortOrder: number;
+};
+
 export type Supply = {
   id: string;
   name: string;
@@ -21,6 +30,8 @@ export type Supply = {
   packageName: string;
   packageContent: number; // contenido de la presentación en unidad base
   packageCostCents?: number | null; // costo de la presentación en centavos; null = no capturado
+  categoryId: string | null; // null = sin categoría
+  categoryName: string | null; // snapshot para pintar sin cruzar el catálogo
   status: 'active' | 'inactive';
   stock: SupplyStock[];
 };
@@ -31,6 +42,7 @@ type SupplyCreateInput = {
   packageName: string;
   packageContent: number;
   packageCostCents?: number | null;
+  categoryId?: string | null;
 };
 
 // baseUnit NO es editable (el backend responde validation_error si se envía).
@@ -40,6 +52,7 @@ type SupplyUpdateInput = {
   packageName?: string;
   packageContent?: number;
   packageCostCents?: number | null;
+  categoryId?: string | null;
 };
 
 export type MovementType = 'purchase' | 'adjustment' | 'sale';
@@ -81,6 +94,23 @@ export const createSupply = (input: SupplyCreateInput) =>
 
 export const updateSupply = (id: string, input: SupplyUpdateInput) =>
   api.patch<{ supply: Supply }>(`/supplies/${id}`, input).then((r) => r.supply);
+
+// --- Categorías de insumo ---
+
+export const listSupplyCategories = () =>
+  api.get<{ items: SupplyCategory[] }>('/supplies/categories').then((r) => r.items);
+
+// No hay GET individual en el contrato: el edit resuelve desde el listado.
+export const getSupplyCategory = (id: string) =>
+  listSupplyCategories().then((items) => items.find((c) => c.id === id));
+
+export const createSupplyCategory = (input: { name: string; sortOrder?: number }) =>
+  api.post<{ category: SupplyCategory }>('/supplies/categories', input).then((r) => r.category);
+
+export const updateSupplyCategory = (
+  id: string,
+  input: { name?: string; status?: 'active' | 'inactive'; sortOrder?: number },
+) => api.patch<{ category: SupplyCategory }>(`/supplies/categories/${id}`, input).then((r) => r.category);
 
 // --- Movimientos ---
 

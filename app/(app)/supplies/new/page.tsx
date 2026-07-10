@@ -1,15 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/user-context';
-import { createSupply, type BaseUnit } from '@/lib/supplies';
+import {
+  createSupply,
+  listSupplyCategories,
+  type BaseUnit,
+  type SupplyCategory,
+} from '@/lib/supplies';
 import { toCents } from '@/lib/products';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
+import { SupplyCategorySelect } from '@/components/SupplyCategorySelect';
 
 const selectClass =
   'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong';
@@ -23,9 +29,20 @@ export default function NewSupplyPage() {
     packageName: '',
     packageContent: '',
     packageCost: '',
+    categoryId: '',
   });
+  const [categories, setCategories] = useState<SupplyCategory[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!me.isSuperAdmin) return;
+    listSupplyCategories()
+      .then((cats) =>
+        setCategories(cats.filter((c) => c.status === 'active').sort((a, b) => a.sortOrder - b.sortOrder)),
+      )
+      .catch(() => setCategories([]));
+  }, [me.isSuperAdmin]);
 
   if (!me.isSuperAdmin) {
     return (
@@ -46,6 +63,7 @@ export default function NewSupplyPage() {
         packageName: form.packageName,
         packageContent: Math.round(Number(form.packageContent)),
         packageCostCents: form.packageCost.trim() === '' ? null : toCents(form.packageCost),
+        categoryId: form.categoryId || null,
       });
       router.push('/supplies');
     } catch (err) {
@@ -64,6 +82,15 @@ export default function NewSupplyPage() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
+          />
+        </FormField>
+        <FormField label="Categoría" htmlFor="categoryId">
+          <SupplyCategorySelect
+            id="categoryId"
+            categories={categories}
+            value={form.categoryId}
+            onChange={(categoryId) => setForm({ ...form, categoryId })}
+            onCreated={(c) => setCategories((prev) => [...prev, c])}
           />
         </FormField>
         <FormField label="Unidad base" htmlFor="baseUnit">

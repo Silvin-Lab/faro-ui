@@ -16,6 +16,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
           { href: '/products', label: 'Productos' },
           { href: '/categories', label: 'Categorías' },
           { href: '/supplies', label: 'Insumos' },
+          { href: '/supplies/categories', label: 'Categorías de insumo' },
           { href: '/expense-catalog', label: 'Catálogo de gastos' },
           { href: '/loyalty', label: 'Lealtad' },
           { href: '/users', label: 'Usuarios' },

@@ -8,10 +8,12 @@ import {
   updateSupply,
   listMovements,
   createMovement,
+  listSupplyCategories,
   movementTypeLabel,
   formatSigned,
   type Supply,
   type SupplyMovement,
+  type SupplyCategory,
 } from '@/lib/supplies';
 import { toCents, toPesos } from '@/lib/products';
 import { listBranches, type Branch } from '@/lib/branches';
@@ -20,6 +22,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
+import { SupplyCategorySelect } from '@/components/SupplyCategorySelect';
 
 const selectClass =
   'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong';
@@ -30,7 +33,13 @@ function dateTimeLabel(iso: string): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-type DataForm = { name: string; packageName: string; packageContent: string; packageCost: string };
+type DataForm = {
+  name: string;
+  packageName: string;
+  packageContent: string;
+  packageCost: string;
+  categoryId: string;
+};
 
 export default function EditSupplyPage() {
   const router = useRouter();
@@ -40,6 +49,7 @@ export default function EditSupplyPage() {
 
   const [supply, setSupply] = useState<Supply | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [categories, setCategories] = useState<SupplyCategory[]>([]);
   const [movements, setMovements] = useState<SupplyMovement[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -68,15 +78,22 @@ export default function EditSupplyPage() {
 
   useEffect(() => {
     if (!me.isSuperAdmin) return;
-    Promise.all([getSupply(id), listBranches(true)])
-      .then(([s, b]) => {
+    Promise.all([getSupply(id), listBranches(true), listSupplyCategories().catch(() => [])])
+      .then(([s, b, cats]) => {
         setSupply(s);
         setDataForm({
           name: s.name,
           packageName: s.packageName,
           packageContent: String(s.packageContent),
           packageCost: (s.packageCostCents ?? null) === null ? '' : toPesos(s.packageCostCents as number),
+          categoryId: s.categoryId ?? '',
         });
+        // Categorías activas para elegir + la categoría actual del insumo aunque
+        // esté inactiva, para no perder la selección vigente en el select.
+        const active = cats.filter((c) => c.status === 'active');
+        const current = cats.find((c) => c.id === s.categoryId);
+        const list = current && current.status !== 'active' ? [...active, current] : active;
+        setCategories(list.sort((a, c) => a.sortOrder - c.sortOrder));
         setBranches(b);
         const firstBranch = b[0]?.id ?? '';
         setPurchase((p) => ({ ...p, branchId: firstBranch }));
@@ -121,6 +138,7 @@ export default function EditSupplyPage() {
         packageName: dataForm.packageName,
         packageContent: Math.round(Number(dataForm.packageContent)),
         packageCostCents: dataForm.packageCost.trim() === '' ? null : toCents(dataForm.packageCost),
+        categoryId: dataForm.categoryId || null,
       });
       setSupply(updated);
     } catch (err) {
@@ -195,6 +213,15 @@ export default function EditSupplyPage() {
               value={dataForm.name}
               onChange={(e) => setDataForm({ ...dataForm, name: e.target.value })}
               required
+            />
+          </FormField>
+          <FormField label="Categoría" htmlFor="categoryId">
+            <SupplyCategorySelect
+              id="categoryId"
+              categories={categories}
+              value={dataForm.categoryId}
+              onChange={(categoryId) => setDataForm({ ...dataForm, categoryId })}
+              onCreated={(c) => setCategories((prev) => [...prev, c])}
             />
           </FormField>
           <FormField label="Unidad base">
