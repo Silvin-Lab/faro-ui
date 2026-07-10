@@ -33,3 +33,30 @@ export const getSalesReport = (params: {
   if (params.branchId) q.set('branchId', params.branchId);
   return api.get<SalesReport>(`/reports/sales?${q.toString()}`);
 };
+
+// --- Reporte de gastos (módulo Gastos) --------------------------------------
+export type ExpenseCategoryBreakdown = { categoryName: string; count: number; totalCents: number };
+export type ExpenseBranchBreakdown = {
+  branchId: string;
+  branchName: string;
+  count: number;
+  totalCents: number;
+};
+
+export type ExpensesReport = {
+  summary: { expensesCount: number; totalCents: number };
+  byCategory: ExpenseCategoryBreakdown[];
+  byBranch: ExpenseBranchBreakdown[];
+};
+
+// Misma firma/estilo que getSalesReport (mismo rango y filtro de sucursal).
+export const getExpensesReport = (params: {
+  from: string;
+  to: string;
+  tz: number;
+  branchId?: string;
+}) => {
+  const q = new URLSearchParams({ from: params.from, to: params.to, tz: String(params.tz) });
+  if (params.branchId) q.set('branchId', params.branchId);
+  return api.get<ExpensesReport>(`/reports/expenses?${q.toString()}`);
+};

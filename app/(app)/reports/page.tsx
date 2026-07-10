@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useUser, useSession } from '@/lib/user-context';
-import { getSalesReport, type SalesReport } from '@/lib/reports';
+import { getSalesReport, getExpensesReport, type SalesReport, type ExpensesReport } from '@/lib/reports';
 import { paymentMethodLabel } from '@/lib/sales';
 import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
@@ -54,6 +54,9 @@ export default function ReportsPage() {
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [report, setReport] = useState<SalesReport | null>(null);
+  // Gastos: se cargan junto a las ventas pero fallan de forma aislada (sección con su error).
+  const [expenses, setExpenses] = useState<ExpensesReport | null>(null);
+  const [expensesError, setExpensesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // M7: filtro por sucursal. '' = Todas · 'none' = Sin sucursal · <uuid> = una sucursal.
@@ -64,14 +67,23 @@ export default function ReportsPage() {
     async (r: { from: string; to: string }, branchId: string) => {
       setLoading(true);
       setError(null);
+      setExpensesError(null);
+      const params = {
+        ...r,
+        tz: new Date().getTimezoneOffset(),
+        branchId: branchId || undefined,
+      };
       try {
-        setReport(
-          await getSalesReport({
-            ...r,
-            tz: new Date().getTimezoneOffset(),
-            branchId: branchId || undefined,
+        const [sales, exp] = await Promise.all([
+          getSalesReport(params),
+          // El fallo de gastos no debe romper el reporte de ventas.
+          getExpensesReport(params).catch((e) => {
+            setExpensesError(e instanceof ApiError ? e.message : 'Error al cargar los gastos');
+            return null;
           }),
-        );
+        ]);
+        setReport(sales);
+        setExpenses(exp);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : 'Error al cargar el reporte');
       } finally {
@@ -105,6 +117,7 @@ export default function ReportsPage() {
     }`;
   const maxCat = Math.max(1, ...(report?.byCategory.map((c) => c.totalCents) ?? [1]));
   const maxHour = Math.max(1, ...(report?.byHour.map((h) => h.totalCents) ?? [1]));
+  const maxExpCat = Math.max(1, ...(expenses?.byCategory.map((c) => c.totalCents) ?? [1]));
   const invalidCustom = customFrom > customTo;
 
   return (
@@ -275,6 +288,71 @@ export default function ReportsPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-ink">Gastos</h2>
+              {expenses && (
+                <span className="shrink-0 text-sm text-muted">
+                  {expenses.summary.expensesCount}{' '}
+                  {expenses.summary.expensesCount === 1 ? 'gasto' : 'gastos'}
+                </span>
+              )}
+            </div>
+            {expensesError ? (
+              <p className="text-sm text-danger">{expensesError}</p>
+            ) : !expenses ? (
+              <p className="text-sm text-muted">Cargando…</p>
+            ) : (
+              <>
+                <p className="mb-4 break-words text-3xl font-bold tabular-nums text-ink sm:text-4xl">
+                  ${toPesos(expenses.summary.totalCents)}
+                </p>
+                <h3 className="mb-2 text-sm font-semibold text-ink">Por categoría</h3>
+                {expenses.byCategory.length === 0 ? (
+                  <p className="text-sm text-muted">Sin gastos en el rango.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {expenses.byCategory.map((c) => (
+                      <li key={c.categoryName}>
+                        <div className="flex justify-between gap-2 text-sm">
+                          <span className="min-w-0 truncate text-ink">
+                            {c.categoryName} <span className="text-muted">· {c.count}</span>
+                          </span>
+                          <span className="shrink-0 font-medium tabular-nums text-ink">
+                            ${toPesos(c.totalCents)}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-2 rounded bg-bg">
+                          <div
+                            className="h-2 rounded bg-accent"
+                            style={{ width: `${(c.totalCents / maxExpCat) * 100}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {isSuperAdmin && expenses.byBranch.length > 0 && (
+                  <>
+                    <h3 className="mb-2 mt-4 text-sm font-semibold text-ink">Por sucursal</h3>
+                    <ul className="space-y-1">
+                      {expenses.byBranch.map((b) => (
+                        <li key={b.branchId} className="flex justify-between gap-2 text-sm">
+                          <span className="min-w-0 truncate text-ink">
+                            {b.branchName} <span className="text-muted">· {b.count}</span>
+                          </span>
+                          <span className="shrink-0 font-medium tabular-nums text-ink">
+                            ${toPesos(b.totalCents)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
             )}
           </Card>
         </>

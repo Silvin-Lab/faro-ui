@@ -15,20 +15,27 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
       ? [
           { href: '/products', label: 'Productos' },
           { href: '/categories', label: 'Categorías' },
+          { href: '/supplies', label: 'Insumos' },
+          { href: '/expense-catalog', label: 'Catálogo de gastos' },
           { href: '/loyalty', label: 'Lealtad' },
           { href: '/users', label: 'Usuarios' },
           { href: '/customers', label: 'Clientes' },
           { href: '/branches', label: 'Sucursales' },
+          { href: '/expenses', label: 'Gastos' },
           { href: '/reports', label: 'Reportes' },
           { href: '/settings', label: 'Negocio' },
         ]
       : user.role === 'branch_admin'
         ? [
             { href: '/pos', label: 'Punto de venta' },
+            { href: '/expenses', label: 'Gastos' },
             { href: '/customers', label: 'Clientes' },
             { href: '/reports', label: 'Reportes' },
           ]
-        : [{ href: '/pos', label: 'Punto de venta' }];
+        : [
+            { href: '/pos', label: 'Punto de venta' },
+            { href: '/expenses', label: 'Gastos' },
+          ];
   // "Mi cuenta" (cambiar contraseña) para todos los perfiles.
   items.push({ href: '/account', label: 'Mi cuenta' });
 
