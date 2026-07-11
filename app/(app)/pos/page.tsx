@@ -12,7 +12,7 @@ import {
   type CustomerLoyaltyStatus,
   type PromotionStatus,
 } from '@/lib/loyalty';
-import { ApiError } from '@/lib/api';
+import { ApiError, markSessionExpired } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/Avatar';
@@ -263,7 +263,14 @@ export default function PosPage() {
       setTicket(sale);
       clearSale();
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'insufficient_payment') setError('El monto recibido es menor al total.');
+      if (e instanceof ApiError && e.status === 401) {
+        // Sesión vencida: el cobro NO se registró. El carrito se conserva (no se
+        // llamó clearSale) para reintentar tras re-loguear. El aviso global
+        // bloqueante lo dispara lib/api (markSessionExpired); aquí solo lo
+        // enriquecemos con el contexto crítico del POS.
+        markSessionExpired('La venta NO se registró. No entregues el pedido: vuelve a iniciar sesión y cóbrala de nuevo (el carrito se conservó).');
+        setError('Sesión expirada: la venta NO se registró. Vuelve a iniciar sesión.');
+      } else if (e instanceof ApiError && e.code === 'insufficient_payment') setError('El monto recibido es menor al total.');
       else if (e instanceof ApiError && e.code === 'promotion_not_eligible')
         setError('La promoción ya no es aplicable para este cliente.');
       else setError(e instanceof ApiError ? e.message : 'No se pudo cobrar.');

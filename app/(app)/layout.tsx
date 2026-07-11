@@ -7,6 +7,7 @@ import { UserProvider } from '@/lib/user-context';
 import { Sidebar } from '@/components/Sidebar';
 import { Topbar } from '@/components/Topbar';
 import { FaviconManager } from '@/components/FaviconManager';
+import { SessionExpiredGate } from '@/components/SessionExpiredGate';
 
 // Layout autenticado (T7 shell + T9 guard). El POS (/pos) se muestra a pantalla
 // completa, sin el menú lateral (es la pantalla de operación por horas).
@@ -57,6 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <UserProvider value={ctx}>
         <FaviconManager faviconUrl={tenant?.faviconUrl ?? null} />
+        <SessionExpiredGate />
         {children}
       </UserProvider>
     );
@@ -65,6 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <UserProvider value={ctx}>
       <FaviconManager faviconUrl={tenant?.faviconUrl ?? null} />
+      <SessionExpiredGate />
       <div className="flex min-h-screen">
         <div className="hidden md:block">
           <Sidebar user={user} />
