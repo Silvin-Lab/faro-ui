@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getProduct, updateProduct, toCents, toPesos } from '@/lib/products';
 import { listCategories, type Category } from '@/lib/categories';
-import { listSupplies, getRecipe, saveRecipe, type Supply } from '@/lib/supplies';
+import {
+  listSupplies,
+  getRecipe,
+  saveRecipe,
+  formatBase,
+  type Supply,
+  type RecipeItemInput,
+} from '@/lib/supplies';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -133,7 +140,13 @@ export default function EditProductPage() {
 // Insumos que consume el producto vendible (receta global). Guarda con PUT replace-all,
 // con su propio botón: no se mezcla con el submit del producto. Solo existe en el editor
 // (products/new no tiene id todavía).
-type RecipeRow = { supplyId: string; quantityBase: string };
+//
+// Cada línea puede capturarse en la unidad base del insumo (g/ml/pieza) o por una
+// "medida de uso" del insumo (ej. "1 scoop" = 25 g). `measureId === ''` significa
+// unidad base; en ese caso `quantity` es la cantidad base. Si hay medida, `quantity`
+// es el número de medidas (admite fraccionales) y la cantidad base se computa local
+// como round(count × baseQuantity) para el preview y el costo en vivo.
+type RecipeRow = { supplyId: string; measureId: string; quantity: string };
 
 function RecipeSection({ productId }: { productId: string }) {
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -147,7 +160,13 @@ function RecipeSection({ productId }: { productId: string }) {
     Promise.all([listSupplies(), getRecipe(productId)])
       .then(([sup, recipe]) => {
         setSupplies(sup);
-        setRows(recipe.map((r) => ({ supplyId: r.supplyId, quantityBase: String(r.quantityBase) })));
+        setRows(
+          recipe.map((r) =>
+            r.measureId
+              ? { supplyId: r.supplyId, measureId: r.measureId, quantity: String(r.measureCount ?? '') }
+              : { supplyId: r.supplyId, measureId: '', quantity: String(r.quantityBase) },
+          ),
+        );
       })
       .catch(() => setError('No se pudo cargar la receta'))
       .finally(() => setLoading(false));
@@ -157,27 +176,39 @@ function RecipeSection({ productId }: { productId: string }) {
   // se hayan desactivado, para no perder una receta existente.
   const activeSupplies = supplies.filter((s) => s.status === 'active');
 
-  function unitOf(supplyId: string): string {
-    return supplies.find((s) => s.id === supplyId)?.baseUnit ?? '';
+  const supplyOf = (id: string) => supplies.find((s) => s.id === id);
+
+  // Cantidad en unidad base de una fila (fuente de verdad del descuento y del costo).
+  // Por medida: round(count × baseQuantity). En unidad base: la cantidad capturada.
+  function rowQuantityBase(row: RecipeRow): number {
+    const sup = supplyOf(row.supplyId);
+    const qty = Number(row.quantity);
+    if (!sup || !Number.isFinite(qty) || qty <= 0) return 0;
+    if (row.measureId) {
+      const m = sup.measures.find((x) => x.id === row.measureId);
+      if (!m) return 0;
+      return Math.round(qty * m.baseQuantity);
+    }
+    return Math.round(qty);
   }
 
   // Costo de una fila en centavos fraccionales (sin redondear):
   //   quantityBase × (packageCostCents / packageContent).
   // packageCostCents null/0 o packageContent no válido → $0 (decisión: asumir cero).
   function rowCostCents(row: RecipeRow): number {
-    const sup = supplies.find((s) => s.id === row.supplyId);
+    const sup = supplyOf(row.supplyId);
     if (!sup) return 0;
     const cost = sup.packageCostCents ?? 0;
-    const qty = Number(row.quantityBase);
-    if (!cost || !sup.packageContent || !Number.isFinite(qty) || qty <= 0) return 0;
-    return qty * (cost / sup.packageContent);
+    const qb = rowQuantityBase(row);
+    if (!cost || !sup.packageContent || qb <= 0) return 0;
+    return qb * (cost / sup.packageContent);
   }
 
   const totalCents = rows.reduce((sum, r) => sum + rowCostCents(r), 0);
 
   function addRow() {
     setSaved(false);
-    setRows((r) => [...r, { supplyId: '', quantityBase: '' }]);
+    setRows((r) => [...r, { supplyId: '', measureId: '', quantity: '' }]);
   }
 
   function removeRow(idx: number) {
@@ -190,14 +221,24 @@ function RecipeSection({ productId }: { productId: string }) {
     setRows((r) => r.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   }
 
+  // Al cambiar de insumo, se reinicia la unidad a base y la cantidad: las medidas
+  // pertenecen al insumo, así que la selección previa deja de tener sentido.
+  function changeSupply(idx: number, supplyId: string) {
+    updateRow(idx, { supplyId, measureId: '', quantity: '' });
+  }
+
   async function onSave() {
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
-      const items = rows
-        .filter((r) => r.supplyId !== '' && Math.round(Number(r.quantityBase)) > 0)
-        .map((r) => ({ supplyId: r.supplyId, quantityBase: Math.round(Number(r.quantityBase)) }));
+      const items: RecipeItemInput[] = rows
+        .filter((r) => r.supplyId !== '' && rowQuantityBase(r) > 0)
+        .map((r) =>
+          r.measureId
+            ? { supplyId: r.supplyId, measureId: r.measureId, measureCount: Number(r.quantity) }
+            : { supplyId: r.supplyId, quantityBase: Math.round(Number(r.quantity)) },
+        );
       await saveRecipe(productId, items);
       setSaved(true);
     } catch (err) {
@@ -218,63 +259,104 @@ function RecipeSection({ productId }: { productId: string }) {
       ) : (
         <div className="space-y-3">
           {rows.length === 0 && <p className="text-sm text-muted">Sin insumos en la receta.</p>}
-          {rows.map((row, idx) => (
-            <div key={idx}>
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <label htmlFor={`supply-${idx}`} className="mb-1 block text-xs text-muted">
-                  Insumo
-                </label>
-                <select
-                  id={`supply-${idx}`}
-                  className={selectClass}
-                  value={row.supplyId}
-                  onChange={(e) => updateRow(idx, { supplyId: e.target.value })}
-                >
-                  <option value="">Selecciona un insumo…</option>
-                  {activeSupplies.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                  {/* Insumo ya en la receta pero inactivo: conservar la opción. */}
-                  {row.supplyId !== '' && !activeSupplies.some((s) => s.id === row.supplyId) && (
-                    <option value={row.supplyId}>
-                      {supplies.find((s) => s.id === row.supplyId)?.name ?? 'Insumo'} (inactivo)
-                    </option>
-                  )}
-                </select>
+          {rows.map((row, idx) => {
+            const sup = supplyOf(row.supplyId);
+            const measures = sup?.measures ?? [];
+            const measure = row.measureId ? measures.find((m) => m.id === row.measureId) : undefined;
+            const qtyUnitLabel = measure ? measure.name : sup?.baseUnit ?? '';
+            const qb = rowQuantityBase(row);
+            const cost = rowCostCents(row);
+            return (
+              <div key={idx} className="rounded-md border border-line p-3">
+                <div className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor={`supply-${idx}`} className="mb-1 block text-xs text-muted">
+                      Insumo
+                    </label>
+                    <select
+                      id={`supply-${idx}`}
+                      className={selectClass}
+                      value={row.supplyId}
+                      onChange={(e) => changeSupply(idx, e.target.value)}
+                    >
+                      <option value="">Selecciona un insumo…</option>
+                      {activeSupplies.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                      {/* Insumo ya en la receta pero inactivo: conservar la opción. */}
+                      {row.supplyId !== '' && !activeSupplies.some((s) => s.id === row.supplyId) && (
+                        <option value={row.supplyId}>
+                          {sup?.name ?? 'Insumo'} (inactivo)
+                        </option>
+                      )}
+                    </select>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="shrink-0"
+                    onClick={() => removeRow(idx)}
+                    aria-label="Quitar insumo de la receta"
+                  >
+                    Quitar
+                  </Button>
+                </div>
+
+                {row.supplyId !== '' && (
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    {measures.length > 0 && (
+                      <div className="w-40 shrink-0">
+                        <label htmlFor={`unit-${idx}`} className="mb-1 block text-xs text-muted">
+                          Unidad
+                        </label>
+                        <select
+                          id={`unit-${idx}`}
+                          className={selectClass}
+                          value={row.measureId}
+                          onChange={(e) => updateRow(idx, { measureId: e.target.value })}
+                        >
+                          <option value="">{sup?.baseUnit}</option>
+                          {measures.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({formatBase(m.baseQuantity)} {sup?.baseUnit})
+                            </option>
+                          ))}
+                          {/* Medida ya usada pero ausente (borrada): conservar la opción. */}
+                          {row.measureId !== '' && !measures.some((m) => m.id === row.measureId) && (
+                            <option value={row.measureId}>Medida eliminada</option>
+                          )}
+                        </select>
+                      </div>
+                    )}
+                    <div className="w-28 shrink-0">
+                      <label htmlFor={`qty-${idx}`} className="mb-1 block text-xs text-muted">
+                        Cantidad{qtyUnitLabel ? ` (${qtyUnitLabel})` : ''}
+                      </label>
+                      <Input
+                        id={`qty-${idx}`}
+                        type="number"
+                        inputMode={measure ? 'decimal' : 'numeric'}
+                        step={measure ? 'any' : '1'}
+                        min={measure ? '0' : '1'}
+                        placeholder={measure ? 'Ej. 1.5' : 'Ej. 18'}
+                        value={row.quantity}
+                        onChange={(e) => updateRow(idx, { quantity: e.target.value })}
+                      />
+                    </div>
+                    {measure && qb > 0 && (
+                      <p className="pb-2 text-xs text-muted">
+                        = {formatBase(qb)} {sup?.baseUnit}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {cost > 0 && <p className="mt-2 text-xs text-muted">≈ ${toPesos(cost)}</p>}
               </div>
-              <div className="w-28 shrink-0">
-                <label htmlFor={`qty-${idx}`} className="mb-1 block text-xs text-muted">
-                  Cantidad{row.supplyId ? ` (${unitOf(row.supplyId)})` : ''}
-                </label>
-                <Input
-                  id={`qty-${idx}`}
-                  type="number"
-                  inputMode="numeric"
-                  step="1"
-                  min="1"
-                  placeholder="Ej. 18"
-                  value={row.quantityBase}
-                  onChange={(e) => updateRow(idx, { quantityBase: e.target.value })}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="shrink-0"
-                onClick={() => removeRow(idx)}
-                aria-label="Quitar insumo de la receta"
-              >
-                Quitar
-              </Button>
-            </div>
-            {rowCostCents(row) > 0 && (
-              <p className="mt-1 text-xs text-muted">≈ ${toPesos(rowCostCents(row))}</p>
-            )}
-            </div>
-          ))}
+            );
+          })}
           <Button type="button" variant="outline" onClick={addRow}>
             Agregar insumo
           </Button>

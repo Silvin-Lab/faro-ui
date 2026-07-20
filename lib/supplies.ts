@@ -23,6 +23,16 @@ export type SupplyCategory = {
   sortOrder: number;
 };
 
+// Medida de uso: forma alterna de dosificar un insumo en una receta
+// (ej. "scoop" = 25 g). baseQuantity es el equivalente en la unidad base del
+// insumo. Un insumo puede tener varias; la receta elige cuál usar por línea.
+export type SupplyMeasure = {
+  id: string;
+  supplyId: string;
+  name: string;
+  baseQuantity: number;
+};
+
 export type Supply = {
   id: string;
   name: string;
@@ -34,6 +44,7 @@ export type Supply = {
   categoryName: string | null; // snapshot para pintar sin cruzar el catálogo
   status: 'active' | 'inactive';
   stock: SupplyStock[];
+  measures: SupplyMeasure[]; // siempre array (vacío si el insumo no tiene medidas)
 };
 
 type SupplyCreateInput = {
@@ -78,8 +89,17 @@ export type RecipeItem = {
   supplyId: string;
   supplyName: string;
   baseUnit: BaseUnit;
-  quantityBase: number;
+  quantityBase: number; // fuente de verdad del descuento en unidad base
+  measureId: string | null; // si la línea se capturó por medida
+  measureName: string | null; // snapshot de la medida para pintar sin cruzar catálogos
+  measureCount: number | null; // número de medidas (admite fraccionales)
 };
+
+// Item de guardado de receta: por medida (measureId + measureCount) o en unidad
+// base (quantityBase). El backend recomputa quantityBase cuando llega una medida.
+export type RecipeItemInput =
+  | { supplyId: string; quantityBase: number }
+  | { supplyId: string; measureId: string; measureCount: number };
 
 // --- Catálogo ---
 
@@ -126,10 +146,24 @@ export const listMovements = (supplyId: string) =>
 export const getRecipe = (productId: string) =>
   api.get<{ items: RecipeItem[] }>(`/supplies/recipes/${productId}`).then((r) => r.items);
 
-export const saveRecipe = (
-  productId: string,
-  items: { supplyId: string; quantityBase: number }[],
-) => api.put<{ items: RecipeItem[] }>(`/supplies/recipes/${productId}`, { items }).then((r) => r.items);
+export const saveRecipe = (productId: string, items: RecipeItemInput[]) =>
+  api.put<{ items: RecipeItem[] }>(`/supplies/recipes/${productId}`, { items }).then((r) => r.items);
+
+// --- Medidas de uso (por insumo) ---
+
+export const listMeasures = (supplyId: string) =>
+  api.get<{ items: SupplyMeasure[] }>(`/supplies/${supplyId}/measures`).then((r) => r.items);
+
+export const createMeasure = (supplyId: string, input: { name: string; baseQuantity: number }) =>
+  api.post<{ measure: SupplyMeasure }>(`/supplies/${supplyId}/measures`, input).then((r) => r.measure);
+
+export const updateMeasure = (
+  measureId: string,
+  input: { name?: string; baseQuantity?: number },
+) => api.patch<{ measure: SupplyMeasure }>(`/supplies/measures/${measureId}`, input).then((r) => r.measure);
+
+export const deleteMeasure = (measureId: string) =>
+  api.delete<void>(`/supplies/measures/${measureId}`);
 
 // --- Helpers de presentación ---
 

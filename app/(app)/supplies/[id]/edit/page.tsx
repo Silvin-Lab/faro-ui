@@ -9,11 +9,17 @@ import {
   listMovements,
   createMovement,
   listSupplyCategories,
+  createMeasure,
+  updateMeasure,
+  deleteMeasure,
   movementTypeLabel,
   formatSigned,
+  formatBase,
   type Supply,
   type SupplyMovement,
   type SupplyCategory,
+  type SupplyMeasure,
+  type BaseUnit,
 } from '@/lib/supplies';
 import { toCents, toPesos } from '@/lib/products';
 import { listBranches, type Branch } from '@/lib/branches';
@@ -269,6 +275,9 @@ export default function EditSupplyPage() {
         </form>
       </Card>
 
+      {/* Medidas de uso */}
+      <MeasuresSection supplyId={id} unit={unit} initial={supply.measures ?? []} />
+
       {/* Entrada de compra */}
       <Card>
         <h2 className="mb-1 text-lg font-semibold text-ink">Entrada de compra</h2>
@@ -415,5 +424,241 @@ export default function EditSupplyPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+// --- Sección "Medidas de uso" ---
+// Mini-CRUD de las medidas del insumo (ej. "scoop" = 25 g). La equivalencia se
+// captura en la unidad base del insumo. Al borrar una medida, las recetas que la
+// usaban conservan su cantidad ya calculada en la unidad base.
+function measureErrMsg(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === 'name_taken') return 'Ya existe una medida con ese nombre.';
+    return err.message;
+  }
+  return 'Ocurrió un error.';
+}
+
+function MeasuresSection({
+  supplyId,
+  unit,
+  initial,
+}: {
+  supplyId: string;
+  unit: BaseUnit;
+  initial: SupplyMeasure[];
+}) {
+  const [measures, setMeasures] = useState<SupplyMeasure[]>(initial);
+
+  // Alta
+  const [addName, setAddName] = useState('');
+  const [addQty, setAddQty] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // Edición inline (una fila a la vez)
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editQty, setEditQty] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function onAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const qty = Math.round(Number(addQty));
+    if (addName.trim() === '' || !Number.isFinite(qty) || qty <= 0) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      const m = await createMeasure(supplyId, { name: addName.trim(), baseQuantity: qty });
+      setMeasures((prev) => [...prev, m]);
+      setAddName('');
+      setAddQty('');
+    } catch (err) {
+      // Conserva lo escrito para que el usuario corrija el nombre repetido.
+      setAddError(measureErrMsg(err));
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function startEdit(m: SupplyMeasure) {
+    setEditId(m.id);
+    setEditName(m.name);
+    setEditQty(String(m.baseQuantity));
+    setEditError(null);
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setEditError(null);
+  }
+
+  async function onSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId) return;
+    const qty = Math.round(Number(editQty));
+    if (editName.trim() === '' || !Number.isFinite(qty) || qty <= 0) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const updated = await updateMeasure(editId, { name: editName.trim(), baseQuantity: qty });
+      setMeasures((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      setEditId(null);
+    } catch (err) {
+      setEditError(measureErrMsg(err));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function onDelete(m: SupplyMeasure) {
+    if (
+      !window.confirm(
+        `¿Borrar la medida "${m.name}"? Las recetas que la usaban conservan su cantidad en ${unit}.`,
+      )
+    )
+      return;
+    setDeletingId(m.id);
+    try {
+      await deleteMeasure(m.id);
+      setMeasures((prev) => prev.filter((x) => x.id !== m.id));
+      if (editId === m.id) setEditId(null);
+    } catch {
+      /* si falla, la medida sigue en la lista; el usuario puede reintentar */
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const addQtyNum = Math.round(Number(addQty));
+  const canAdd = addName.trim() !== '' && addQtyNum > 0 && !adding;
+
+  return (
+    <Card>
+      <h2 className="mb-1 text-lg font-semibold text-ink">Medidas de uso</h2>
+      <p className="mb-3 text-xs text-muted">
+        Formas de dosificar este insumo en las recetas (ej. una cucharada, un scoop). Cada medida
+        equivale a una cantidad en {unit}. Al borrar una medida, las recetas que la usaban conservan
+        su cantidad ya calculada en {unit}.
+      </p>
+
+      {measures.length === 0 ? (
+        <p className="mb-3 text-sm text-muted">Sin medidas. Este insumo se captura en {unit}.</p>
+      ) : (
+        <ul className="mb-4 divide-y divide-line">
+          {measures.map((m) =>
+            editId === m.id ? (
+              <li key={m.id} className="py-3">
+                <form onSubmit={onSaveEdit} className="space-y-2">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <label htmlFor={`m-name-${m.id}`} className="mb-1 block text-xs text-muted">
+                        Nombre
+                      </label>
+                      <Input
+                        id={`m-name-${m.id}`}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <label htmlFor={`m-qty-${m.id}`} className="mb-1 block text-xs text-muted">
+                        Equivale ({unit})
+                      </label>
+                      <Input
+                        id={`m-qty-${m.id}`}
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="1"
+                        value={editQty}
+                        onChange={(e) => setEditQty(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {editError && <p className="text-sm text-danger">{editError}</p>}
+                  <div className="flex gap-2">
+                    <Button type="submit" loading={savingEdit}>
+                      Guardar
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={cancelEdit}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              </li>
+            ) : (
+              <li key={m.id} className="flex items-center justify-between gap-2 py-3">
+                <span className="min-w-0 text-sm text-ink">
+                  <span className="font-medium">1 {m.name}</span>{' '}
+                  <span className="text-muted">
+                    = {formatBase(m.baseQuantity)} {unit}
+                  </span>
+                </span>
+                <span className="flex shrink-0 gap-1">
+                  <Button type="button" variant="ghost" onClick={() => startEdit(m)}>
+                    Editar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    loading={deletingId === m.id}
+                    onClick={() => onDelete(m)}
+                    aria-label={`Borrar la medida ${m.name}`}
+                  >
+                    Borrar
+                  </Button>
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+
+      <form onSubmit={onAdd} className="space-y-3 border-t border-line pt-4">
+        <p className="text-xs font-medium text-muted">Agregar medida</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="new-measure-name" className="mb-1 block text-xs text-muted">
+              Nombre
+            </label>
+            <Input
+              id="new-measure-name"
+              placeholder="Ej. scoop, cucharada"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+            />
+          </div>
+          <div className="w-28 shrink-0">
+            <label htmlFor="new-measure-qty" className="mb-1 block text-xs text-muted">
+              Equivale ({unit})
+            </label>
+            <Input
+              id="new-measure-qty"
+              type="number"
+              inputMode="numeric"
+              step="1"
+              min="1"
+              placeholder="Ej. 25"
+              value={addQty}
+              onChange={(e) => setAddQty(e.target.value)}
+            />
+          </div>
+        </div>
+        {addName.trim() !== '' && addQtyNum > 0 && (
+          <p className="text-xs text-muted">
+            1 {addName.trim()} = {formatBase(addQtyNum)} {unit}
+          </p>
+        )}
+        {addError && <p className="text-sm text-danger">{addError}</p>}
+        <Button type="submit" loading={adding} disabled={!canAdd}>
+          Agregar medida
+        </Button>
+      </form>
+    </Card>
   );
 }

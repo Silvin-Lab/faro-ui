@@ -57,7 +57,7 @@ export default function NewSupplyPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createSupply({
+      const created = await createSupply({
         name: form.name,
         baseUnit: form.baseUnit,
         packageName: form.packageName,
@@ -65,7 +65,9 @@ export default function NewSupplyPage() {
         packageCostCents: form.packageCost.trim() === '' ? null : toCents(form.packageCost),
         categoryId: form.categoryId || null,
       });
-      router.push('/supplies');
+      // Caer directo en la edición del insumo recién creado: ahí ya existe el id
+      // (FK) que habilita la sección "Medidas de uso", ahorrando un paso de navegación.
+      router.push(`/supplies/${created.id}/edit`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear insumo');
       setSubmitting(false);

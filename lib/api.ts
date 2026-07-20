@@ -86,6 +86,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, message, code);
   }
+  // Cualquier respuesta exitosa implica que la sesión es válida de nuevo. Si la
+  // bandera de "sesión expirada" había quedado pegajosa (p.ej. un 401 legítimo de
+  // /auth/me sin sesión, o un login al que no se llegó por el botón del overlay),
+  // un request 200 posterior al re-login la limpia sin depender de ese botón.
+  if (sessionExpired) {
+    resetSessionExpired();
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
