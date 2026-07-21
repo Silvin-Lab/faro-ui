@@ -148,7 +148,10 @@ export default function BranchesPage() {
               placeholder="Nombre (ej. Local Centro)"
               value={newName}
               maxLength={60}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => {
+                setNewName(e.target.value);
+                setCreateErr(null);
+              }}
             />
             {createErr && <p className="mt-1 text-sm text-danger">{createErr}</p>}
           </div>
@@ -181,7 +184,10 @@ export default function BranchesPage() {
                         aria-label="Nuevo nombre"
                         value={editName}
                         maxLength={60}
-                        onChange={(e) => setEditName(e.target.value)}
+                        onChange={(e) => {
+                          setEditName(e.target.value);
+                          setRowErr(null);
+                        }}
                         className="max-w-xs"
                       />
                       <Button onClick={() => saveEdit(b.id)} loading={busy} disabled={!editName.trim()}>

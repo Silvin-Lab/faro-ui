@@ -3,6 +3,12 @@ import type { PaymentMethod } from './sales';
 
 export type PaymentBreakdown = { method: PaymentMethod; count: number; totalCents: number };
 export type CategoryBreakdown = { categoryName: string; quantity: number; totalCents: number };
+export type ProductBreakdown = {
+  categoryName: string;
+  productName: string;
+  quantity: number;
+  totalCents: number;
+};
 export type HourBreakdown = { hour: number; count: number; totalCents: number };
 // M7: corte por sucursal. branchId null = bucket "Sin sucursal".
 export type BranchBreakdown = {
@@ -20,6 +26,8 @@ export type SalesReport = {
   byHour: HourBreakdown[];
   // Aditivo (M7): puede no venir en backends previos.
   byBranch?: BranchBreakdown[];
+  // Aditivo: puede no venir en backends previos.
+  byProduct?: ProductBreakdown[];
 };
 
 // branchId: undefined = todas · 'none' = sin sucursal (branch_id IS NULL) · <uuid> = una sucursal.

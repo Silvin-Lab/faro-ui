@@ -79,7 +79,10 @@ export function SupplyCategorySelect({ id, categories, value, onChange, onCreate
           <Input
             ref={inputRef}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
             placeholder="Nombre de la categoría"
             aria-label="Nombre de la nueva categoría"
             onKeyDown={(e) => {

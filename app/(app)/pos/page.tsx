@@ -752,6 +752,7 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [priorVisits, setPriorVisits] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -803,6 +804,7 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
   function startRegister() {
     setStage('register');
     if (/^\d+$/.test(q)) setPhone(q);
+    setPriorVisits('');
     setError(null);
   }
 
@@ -810,7 +812,11 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
     setLoading(true);
     setError(null);
     try {
-      const c = await createCustomer({ phone: phone.trim(), firstName, lastName });
+      // Si ya había venido antes (tarjeta física, o el cajero lo recuerda), las
+      // visitas anteriores se fijan en la misma alta — un cajero puede hacerlo
+      // aunque no tenga permiso para ajustar visitas de un cliente ya existente.
+      const visits = priorVisits.trim() === '' ? 0 : Math.round(Number(priorVisits));
+      const c = await createCustomer({ phone: phone.trim(), firstName, lastName, priorVisits: visits });
       onSelect(c);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'No se pudo registrar el cliente.');
@@ -905,17 +911,51 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
                 type="tel"
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  setError(null);
+                }}
                 autoFocus
               />
               <label htmlFor="cfirst" className="block text-sm font-medium text-ink">
                 Nombre
               </label>
-              <Input id="cfirst" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              <Input
+                id="cfirst"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  setError(null);
+                }}
+              />
               <label htmlFor="clast" className="block text-sm font-medium text-ink">
                 Apellido
               </label>
-              <Input id="clast" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              <Input
+                id="clast"
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  setError(null);
+                }}
+              />
+              <label htmlFor="cpriorvisits" className="block text-sm font-medium text-ink">
+                Visitas anteriores
+              </label>
+              <Input
+                id="cpriorvisits"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                placeholder="0"
+                value={priorVisits}
+                onChange={(e) => setPriorVisits(e.target.value)}
+              />
+              <p className="text-xs text-muted">
+                Si esta persona ya venía antes (aunque sea la primera vez que la registras en el
+                sistema), indica aquí cuántas visitas trae para no arrancarla en cero.
+              </p>
             </div>
 
             {error && <p className="mt-2 text-sm text-danger">{error}</p>}

@@ -66,7 +66,10 @@ type SupplyUpdateInput = {
   categoryId?: string | null;
 };
 
-export type MovementType = 'purchase' | 'adjustment' | 'sale';
+// M8 Almacén: el historial de la sucursal ahora también recibe `transfer`
+// (entrada por una salida de almacén, +) y `waste` (merma de producto ya
+// despachado a la sucursal, −) — tech-spec §5.6.
+export type MovementType = 'purchase' | 'adjustment' | 'sale' | 'transfer' | 'waste';
 
 export type SupplyMovement = {
   id: string;
@@ -172,7 +175,15 @@ export const unitLabel = (u: BaseUnit): string => u; // 'g' | 'ml' | 'pieza'
 
 // Etiqueta de un tipo de movimiento en español.
 export const movementTypeLabel = (t: MovementType): string =>
-  t === 'purchase' ? 'Compra' : t === 'sale' ? 'Venta' : 'Ajuste';
+  t === 'purchase'
+    ? 'Compra'
+    : t === 'sale'
+      ? 'Venta'
+      : t === 'transfer'
+        ? 'Entrada de almacén'
+        : t === 'waste'
+          ? 'Merma'
+          : 'Ajuste';
 
 // Formatea una cantidad en unidad base con separador de miles (es-MX): 1800 → "1,800".
 export const formatBase = (n: number): string => n.toLocaleString('es-MX');

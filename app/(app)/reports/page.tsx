@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useUser, useSession } from '@/lib/user-context';
-import { getSalesReport, getExpensesReport, type SalesReport, type ExpensesReport } from '@/lib/reports';
+import {
+  getSalesReport,
+  getExpensesReport,
+  type SalesReport,
+  type ExpensesReport,
+  type ProductBreakdown,
+} from '@/lib/reports';
 import { paymentMethodLabel } from '@/lib/sales';
 import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
@@ -355,8 +361,50 @@ export default function ReportsPage() {
               </>
             )}
           </Card>
+
+          <Card>
+            <h2 className="mb-3 text-lg font-semibold text-ink">Resumen por producto</h2>
+            {!report.byProduct || report.byProduct.length === 0 ? (
+              <p className="text-sm text-muted">Sin ventas en el rango.</p>
+            ) : (
+              <div className="space-y-5">
+                {groupByCategory(report.byProduct).map(([categoryName, products]) => (
+                  <div key={categoryName}>
+                    <h3 className="mb-2 text-sm font-semibold text-ink">{categoryName}</h3>
+                    <ul className="space-y-1">
+                      {products.map((p) => (
+                        <li
+                          key={p.productName}
+                          className="flex justify-between gap-2 border-l-2 border-line pl-3 text-sm"
+                        >
+                          <span className="min-w-0 truncate text-ink">
+                            {p.productName} <span className="text-muted">· {p.quantity} u</span>
+                          </span>
+                          <span className="shrink-0 font-medium tabular-nums text-ink">
+                            ${toPesos(p.totalCents)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </>
       )}
     </div>
   );
+}
+
+// Agrupa el desglose plano por producto en [categoría, productos[]], preservando
+// el orden en que ya viene del backend (por categoría, luego por total desc).
+function groupByCategory(items: ProductBreakdown[]): [string, ProductBreakdown[]][] {
+  const groups: [string, ProductBreakdown[]][] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last[0] === item.categoryName) last[1].push(item);
+    else groups.push([item.categoryName, [item]]);
+  }
+  return groups;
 }

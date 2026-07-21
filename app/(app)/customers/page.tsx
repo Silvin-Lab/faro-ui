@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@/lib/user-context';
 import {
   searchCustomers,
+  listCustomers,
   createCustomer,
   setCustomerVisits,
   type Customer,
@@ -124,7 +125,7 @@ function CustomerRow({
   );
 }
 
-// Alta de cliente con visitas previas opcionales (createCustomer + setCustomerVisits).
+// Alta de cliente con visitas previas opcionales (fijadas en la misma alta).
 function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -153,15 +154,13 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
     setBusy(true);
     setError(null);
     try {
-      let customer = await createCustomer({
+      // Si el cliente traía visitas de su tarjeta física, se fijan en la misma alta.
+      const customer = await createCustomer({
         phone: phone.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        priorVisits: visits,
       });
-      // Si el cliente traía visitas de su tarjeta física, las fijamos enseguida.
-      if (visits > 0) {
-        customer = await setCustomerVisits(customer.id, visits);
-      }
       onCreated(customer);
       reset();
       setOpen(false);
@@ -184,7 +183,10 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
           <Input
             id="new-first"
             value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            onChange={(e) => {
+              setFirstName(e.target.value);
+              setError(null);
+            }}
             required
           />
         </FormField>
@@ -192,7 +194,10 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
           <Input
             id="new-last"
             value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
+            onChange={(e) => {
+              setLastName(e.target.value);
+              setError(null);
+            }}
             required
           />
         </FormField>
@@ -201,7 +206,10 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
             id="new-phone"
             inputMode="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setError(null);
+            }}
             required
           />
         </FormField>
@@ -243,6 +251,8 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function CustomersPage() {
   const me = useUser();
   const canAccess = me.role === 'super_admin' || me.role === 'branch_admin';
@@ -252,7 +262,43 @@ export default function CustomersPage() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Listado por default (sin búsqueda): primeros 20 clientes + "Mostrar más"
+  // paginado con offset. Independiente del modo búsqueda de arriba.
+  const [browseItems, setBrowseItems] = useState<Customer[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(true);
+  const [browseLoadingMore, setBrowseLoadingMore] = useState(false);
+  const [browseHasMore, setBrowseHasMore] = useState(true);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+
   const q = query.trim();
+  const browsing = q.length < 2;
+
+  useEffect(() => {
+    if (!canAccess) return;
+    setBrowseLoading(true);
+    setBrowseError(null);
+    listCustomers(PAGE_SIZE, 0)
+      .then((items) => {
+        setBrowseItems(items);
+        setBrowseHasMore(items.length === PAGE_SIZE);
+      })
+      .catch((e) => setBrowseError(friendlyError(e, 'No se pudieron cargar los clientes.')))
+      .finally(() => setBrowseLoading(false));
+  }, [canAccess]);
+
+  async function loadMore() {
+    setBrowseLoadingMore(true);
+    setBrowseError(null);
+    try {
+      const items = await listCustomers(PAGE_SIZE, browseItems.length);
+      setBrowseItems((prev) => [...prev, ...items]);
+      setBrowseHasMore(items.length === PAGE_SIZE);
+    } catch (e) {
+      setBrowseError(friendlyError(e, 'No se pudieron cargar más clientes.'));
+    } finally {
+      setBrowseLoadingMore(false);
+    }
+  }
 
   // Búsqueda por nombre o teléfono con debounce (~300ms), igual que el modal del POS.
   useEffect(() => {
@@ -286,16 +332,18 @@ export default function CustomersPage() {
     };
   }, [q, canAccess]);
 
-  // Refleja en la lista el cliente actualizado (ajuste de visitas o alta reciente).
+  // Refleja el cliente actualizado (ajuste de visitas o alta reciente) en ambas
+  // listas (búsqueda y listado por default), esté cual esté visible.
   function upsert(c: Customer) {
-    setResults((prev) => {
-      if (!prev) return [c];
+    const merge = (prev: Customer[]) => {
       const i = prev.findIndex((x) => x.id === c.id);
       if (i === -1) return [c, ...prev];
       const next = [...prev];
       next[i] = c;
       return next;
-    });
+    };
+    setResults((prev) => (prev ? merge(prev) : prev));
+    setBrowseItems((prev) => merge(prev));
   }
 
   if (!canAccess) {
@@ -330,22 +378,41 @@ export default function CustomersPage() {
         </FormField>
 
         <div className="mt-4">
-          {q.length < 2 && (
-            <p className="text-sm text-muted">Escribe un nombre o teléfono para buscar.</p>
-          )}
-          {q.length >= 2 && searching && <p className="text-sm text-muted">Buscando…</p>}
-          {error && <p className="text-sm text-danger">{error}</p>}
-          {q.length >= 2 && !searching && !error && results && results.length === 0 && (
+          {!browsing && searching && <p className="text-sm text-muted">Buscando…</p>}
+          {!browsing && error && <p className="text-sm text-danger">{error}</p>}
+          {!browsing && !searching && !error && results && results.length === 0 && (
             <p className="text-sm text-muted">
               No hay clientes que coincidan con “{q}”. Puedes crear uno nuevo.
             </p>
           )}
-          {results && results.length > 0 && (
+          {!browsing && results && results.length > 0 && (
             <ul className="divide-y divide-line">
               {results.map((c) => (
                 <CustomerRow key={c.id} customer={c} onUpdated={upsert} />
               ))}
             </ul>
+          )}
+
+          {browsing && browseLoading && <p className="text-sm text-muted">Cargando…</p>}
+          {browsing && browseError && <p className="text-sm text-danger">{browseError}</p>}
+          {browsing && !browseLoading && browseItems.length === 0 && !browseError && (
+            <p className="text-sm text-muted">Aún no hay clientes. Crea el primero arriba.</p>
+          )}
+          {browsing && browseItems.length > 0 && (
+            <>
+              <ul className="divide-y divide-line">
+                {browseItems.map((c) => (
+                  <CustomerRow key={c.id} customer={c} onUpdated={upsert} />
+                ))}
+              </ul>
+              {browseHasMore && (
+                <div className="mt-4 flex justify-center">
+                  <Button variant="ghost" onClick={loadMore} loading={browseLoadingMore}>
+                    Mostrar más
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </Card>

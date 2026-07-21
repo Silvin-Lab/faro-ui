@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/lib/user-context';
 import {
   getSupply,
   updateSupply,
   listMovements,
-  createMovement,
   listSupplyCategories,
   createMeasure,
   updateMeasure,
@@ -22,16 +22,12 @@ import {
   type BaseUnit,
 } from '@/lib/supplies';
 import { toCents, toPesos } from '@/lib/products';
-import { listBranches, type Branch } from '@/lib/branches';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { FormField } from '@/components/ui/FormField';
 import { SupplyCategorySelect } from '@/components/SupplyCategorySelect';
-
-const selectClass =
-  'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong';
 
 function dateTimeLabel(iso: string): string {
   const d = new Date(iso);
@@ -54,7 +50,6 @@ export default function EditSupplyPage() {
   const id = params.id;
 
   const [supply, setSupply] = useState<Supply | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<SupplyCategory[]>([]);
   const [movements, setMovements] = useState<SupplyMovement[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -63,16 +58,6 @@ export default function EditSupplyPage() {
   const [dataForm, setDataForm] = useState<DataForm | null>(null);
   const [savingData, setSavingData] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
-
-  // --- Entrada de compra ---
-  const [purchase, setPurchase] = useState({ branchId: '', packages: '' });
-  const [savingPurchase, setSavingPurchase] = useState(false);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-
-  // --- Ajuste / merma ---
-  const [adjust, setAdjust] = useState({ branchId: '', quantityBase: '', reason: '' });
-  const [savingAdjust, setSavingAdjust] = useState(false);
-  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   const refreshMovements = useCallback(async () => {
     try {
@@ -84,8 +69,8 @@ export default function EditSupplyPage() {
 
   useEffect(() => {
     if (!me.isSuperAdmin) return;
-    Promise.all([getSupply(id), listBranches(true), listSupplyCategories().catch(() => [])])
-      .then(([s, b, cats]) => {
+    Promise.all([getSupply(id), listSupplyCategories().catch(() => [])])
+      .then(([s, cats]) => {
         setSupply(s);
         setDataForm({
           name: s.name,
@@ -100,10 +85,6 @@ export default function EditSupplyPage() {
         const current = cats.find((c) => c.id === s.categoryId);
         const list = current && current.status !== 'active' ? [...active, current] : active;
         setCategories(list.sort((a, c) => a.sortOrder - c.sortOrder));
-        setBranches(b);
-        const firstBranch = b[0]?.id ?? '';
-        setPurchase((p) => ({ ...p, branchId: firstBranch }));
-        setAdjust((a) => ({ ...a, branchId: firstBranch }));
       })
       .catch(() => setLoadError('No se pudo cargar el insumo'));
     void refreshMovements();
@@ -154,51 +135,7 @@ export default function EditSupplyPage() {
     }
   }
 
-  async function onPurchase(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingPurchase(true);
-    setPurchaseError(null);
-    try {
-      await createMovement(id, {
-        type: 'purchase',
-        branchId: purchase.branchId,
-        packages: Math.round(Number(purchase.packages)),
-      });
-      setPurchase((p) => ({ ...p, packages: '' }));
-      await refreshMovements();
-    } catch (err) {
-      setPurchaseError(err instanceof ApiError ? err.message : 'Error al registrar la compra');
-    } finally {
-      setSavingPurchase(false);
-    }
-  }
-
-  async function onAdjust(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingAdjust(true);
-    setAdjustError(null);
-    try {
-      await createMovement(id, {
-        type: 'adjustment',
-        branchId: adjust.branchId,
-        quantityBase: Math.round(Number(adjust.quantityBase)),
-        reason: adjust.reason,
-      });
-      setAdjust((a) => ({ ...a, quantityBase: '', reason: '' }));
-      await refreshMovements();
-    } catch (err) {
-      setAdjustError(err instanceof ApiError ? err.message : 'Error al registrar el ajuste');
-    } finally {
-      setSavingAdjust(false);
-    }
-  }
-
   const unit = supply.baseUnit;
-  const packages = Math.round(Number(purchase.packages));
-  const canPurchase = purchase.branchId !== '' && packages > 0 && !savingPurchase;
-  const adjustQty = Math.round(Number(adjust.quantityBase));
-  const canAdjust =
-    adjust.branchId !== '' && adjustQty !== 0 && adjust.reason.trim() !== '' && !savingAdjust;
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -208,6 +145,13 @@ export default function EditSupplyPage() {
           Volver
         </Button>
       </div>
+      <p className="text-xs text-muted">
+        El registro de existencias (compras, salidas, mermas) ahora se gestiona en{' '}
+        <Link href="/warehouse" className="underline hover:text-ink">
+          Almacén
+        </Link>
+        .
+      </p>
 
       {/* Datos */}
       <Card>
@@ -278,110 +222,7 @@ export default function EditSupplyPage() {
       {/* Medidas de uso */}
       <MeasuresSection supplyId={id} unit={unit} initial={supply.measures ?? []} />
 
-      {/* Entrada de compra */}
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold text-ink">Entrada de compra</h2>
-        <p className="mb-3 text-xs text-muted">
-          Cada presentación ({supply.packageName}) suma {supply.packageContent} {unit} al stock de la
-          sucursal elegida.
-        </p>
-        <form onSubmit={onPurchase} className="space-y-3">
-          <FormField label="Sucursal" htmlFor="purchaseBranch">
-            <select
-              id="purchaseBranch"
-              className={selectClass}
-              value={purchase.branchId}
-              onChange={(e) => setPurchase({ ...purchase, branchId: e.target.value })}
-              required
-            >
-              <option value="" disabled>
-                Selecciona una sucursal…
-              </option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label={`Presentaciones (${supply.packageName})`} htmlFor="packages">
-            <Input
-              id="packages"
-              type="number"
-              inputMode="numeric"
-              step="1"
-              min="1"
-              placeholder="Ej. 2"
-              value={purchase.packages}
-              onChange={(e) => setPurchase({ ...purchase, packages: e.target.value })}
-            />
-          </FormField>
-          {packages > 0 && (
-            <p className="text-xs text-muted">
-              Entran {packages * supply.packageContent} {unit}.
-            </p>
-          )}
-          {purchaseError && <p className="text-sm text-danger">{purchaseError}</p>}
-          <Button type="submit" loading={savingPurchase} disabled={!canPurchase}>
-            Registrar compra
-          </Button>
-        </form>
-      </Card>
-
-      {/* Ajuste / merma */}
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold text-ink">Ajuste / merma</h2>
-        <p className="mb-3 text-xs text-muted">
-          Cantidad firmada en {unit}: negativa para salidas (merma, cortesía), positiva para
-          correcciones. El stock puede quedar negativo.
-        </p>
-        <form onSubmit={onAdjust} className="space-y-3">
-          <FormField label="Sucursal" htmlFor="adjustBranch">
-            <select
-              id="adjustBranch"
-              className={selectClass}
-              value={adjust.branchId}
-              onChange={(e) => setAdjust({ ...adjust, branchId: e.target.value })}
-              required
-            >
-              <option value="" disabled>
-                Selecciona una sucursal…
-              </option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label={`Cantidad firmada (${unit})`} htmlFor="adjustQty">
-            <Input
-              id="adjustQty"
-              type="number"
-              inputMode="numeric"
-              step="1"
-              placeholder="Ej. -10"
-              value={adjust.quantityBase}
-              onChange={(e) => setAdjust({ ...adjust, quantityBase: e.target.value })}
-            />
-          </FormField>
-          <FormField label="Motivo" htmlFor="reason">
-            <Input
-              id="reason"
-              placeholder="Ej. cortesía, merma, corrección"
-              value={adjust.reason}
-              onChange={(e) => setAdjust({ ...adjust, reason: e.target.value })}
-              required
-            />
-          </FormField>
-          {adjustError && <p className="text-sm text-danger">{adjustError}</p>}
-          <Button type="submit" loading={savingAdjust} disabled={!canAdjust}>
-            Registrar ajuste
-          </Button>
-        </form>
-      </Card>
-
-      {/* Historial de movimientos */}
+      {/* Historial de movimientos (solo lectura) */}
       <Card>
         <h2 className="mb-3 text-lg font-semibold text-ink">Historial de movimientos</h2>
         {movements.length === 0 ? (
@@ -561,7 +402,10 @@ function MeasuresSection({
                       <Input
                         id={`m-name-${m.id}`}
                         value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
+                        onChange={(e) => {
+                          setEditName(e.target.value);
+                          setEditError(null);
+                        }}
                         required
                       />
                     </div>
@@ -630,7 +474,10 @@ function MeasuresSection({
               id="new-measure-name"
               placeholder="Ej. scoop, cucharada"
               value={addName}
-              onChange={(e) => setAddName(e.target.value)}
+              onChange={(e) => {
+                setAddName(e.target.value);
+                setAddError(null);
+              }}
             />
           </div>
           <div className="w-28 shrink-0">

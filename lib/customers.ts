@@ -21,8 +21,18 @@ export const searchCustomers = (q: string, limit = 20) =>
     .get<{ items: Customer[] }>(`/customers?q=${encodeURIComponent(q)}&limit=${limit}`)
     .then((r) => r.items);
 
-export const createCustomer = (input: { phone: string; firstName: string; lastName: string }) =>
-  api.post<{ customer: Customer }>('/customers', input).then((r) => r.customer);
+// Listado por default (sin texto de búsqueda), paginado con "mostrar más".
+export const listCustomers = (limit = 20, offset = 0) =>
+  api.get<{ items: Customer[] }>(`/customers?limit=${limit}&offset=${offset}`).then((r) => r.items);
+
+// priorVisits (opcional): visitas que ya traía (tarjeta física), fijadas de una
+// vez al crear — no requiere el permiso de admin de setCustomerVisits.
+export const createCustomer = (input: {
+  phone: string;
+  firstName: string;
+  lastName: string;
+  priorVisits?: number;
+}) => api.post<{ customer: Customer }>('/customers', input).then((r) => r.customer);
 
 // Fija el contador de visitas del ciclo actual (visits ≥ 0) y sube el acumulado de por
 // vida al menos a ese valor (nunca baja). Migración de tarjetas físicas de lealtad.
