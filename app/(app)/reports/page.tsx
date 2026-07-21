@@ -16,6 +16,7 @@ import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PieChart } from '@/components/ui/PieChart';
 
 const selectClass =
   'min-h-[40px] w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong sm:w-auto';
@@ -368,28 +369,56 @@ export default function ReportsPage() {
               <p className="text-sm text-muted">Sin ventas en el rango.</p>
             ) : (
               <div className="space-y-5">
-                {groupByCategory(report.byProduct).map(([categoryName, products]) => (
-                  <div key={categoryName}>
-                    <h3 className="mb-2 text-sm font-semibold text-ink">{categoryName}</h3>
-                    <ul className="space-y-1">
-                      {products.map((p) => (
-                        <li
-                          key={p.productName}
-                          className="flex justify-between gap-2 border-l-2 border-line pl-3 text-sm"
-                        >
-                          <span className="min-w-0 truncate text-ink">
-                            {p.productName} <span className="text-muted">· {p.quantity} u</span>
-                          </span>
-                          <span className="shrink-0 font-medium tabular-nums text-ink">
-                            ${toPesos(p.totalCents)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                {groupByCategory(report.byProduct).map(([categoryName, products]) => {
+                  const categoryQty = products.reduce((sum, p) => sum + p.quantity, 0);
+                  return (
+                    <div key={categoryName}>
+                      <h3 className="mb-2 text-sm font-semibold text-ink">{categoryName}</h3>
+                      <ul className="space-y-1.5">
+                        {products.map((p) => {
+                          const pct = categoryQty > 0 ? (p.quantity / categoryQty) * 100 : 0;
+                          return (
+                            <li
+                              key={p.productName}
+                              className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-l-2 border-line pl-3 text-sm"
+                            >
+                              <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="min-w-0 truncate text-ink">{p.productName}</span>
+                                <span className="shrink-0 rounded-full bg-bg px-2 py-0.5 text-xs font-medium tabular-nums text-muted">
+                                  {p.quantity} u
+                                </span>
+                                <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold tabular-nums text-ink">
+                                  {pct.toFixed(0)}%
+                                </span>
+                              </span>
+                              <span className="shrink-0 font-medium tabular-nums text-ink">
+                                ${toPesos(p.totalCents)}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
               </div>
             )}
+          </Card>
+
+          <Card>
+            <PieChart
+              title="Distribución de ventas por categoría"
+              data={report.byCategory.map((c) => ({ label: c.categoryName, value: c.totalCents }))}
+              formatValue={(v) => `$${toPesos(v)}`}
+            />
+          </Card>
+
+          <Card>
+            <PieChart
+              title="Distribución por número de productos vendidos"
+              data={report.byCategory.map((c) => ({ label: c.categoryName, value: c.quantity }))}
+              formatValue={(v) => `${v} u`}
+            />
           </Card>
         </>
       )}
