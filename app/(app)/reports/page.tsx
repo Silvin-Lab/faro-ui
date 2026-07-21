@@ -1,22 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useUser, useSession } from '@/lib/user-context';
 import {
   getSalesReport,
   getExpensesReport,
+  getSalesList,
   type SalesReport,
   type ExpensesReport,
   type ProductBreakdown,
+  type SaleListItem,
 } from '@/lib/reports';
-import { paymentMethodLabel } from '@/lib/sales';
+import { paymentMethodLabel, getSale, type Sale } from '@/lib/sales';
 import { listBranches, type Branch } from '@/lib/branches';
 import { toPesos } from '@/lib/products';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { PieChart } from '@/components/ui/PieChart';
+import { DistributionChart } from '@/components/ui/PieChart';
+import { HourHeatmap } from '@/components/ui/HourHeatmap';
+import { RefreshRing } from '@/components/ui/RefreshRing';
+import { SaleTicket } from '@/components/SaleTicket';
+
+const AUTO_REFRESH_SECONDS = 60;
+const SALES_LIST_MAX_RANGE_MS = 48 * 60 * 60 * 1000;
 
 const selectClass =
   'min-h-[40px] w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong sm:w-auto';
@@ -70,6 +79,21 @@ export default function ReportsPage() {
   const [branchFilter, setBranchFilter] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
 
+  // Historial de ventas (solo si el rango activo es ≤48h).
+  const [salesList, setSalesList] = useState<SaleListItem[] | null>(null);
+  const [salesListError, setSalesListError] = useState<string | null>(null);
+  const [openSaleId, setOpenSaleId] = useState<string | null>(null);
+  const [openSale, setOpenSale] = useState<Sale | null>(null);
+  const [openSaleError, setOpenSaleError] = useState<string | null>(null);
+
+  // Rango efectivamente cargado (no el del formulario "Personalizado" a medio
+  // editar) — es lo que reusa el auto-refresh. reloadToken fuerza un reload
+  // (manual o automático) sin cambiar el rango; también reinicia el anillo.
+  const [activeParams, setActiveParams] = useState<{ range: { from: string; to: string }; branchId: string } | null>(
+    null,
+  );
+  const [reloadToken, setReloadToken] = useState(0);
+
   const load = useCallback(
     async (r: { from: string; to: string }, branchId: string) => {
       setLoading(true);
@@ -96,8 +120,30 @@ export default function ReportsPage() {
       } finally {
         setLoading(false);
       }
+
+      const withinListRange = new Date(r.to).getTime() - new Date(r.from).getTime() <= SALES_LIST_MAX_RANGE_MS;
+      if (withinListRange) {
+        try {
+          setSalesList(await getSalesList({ from: r.from, to: r.to, branchId: branchId || undefined }));
+          setSalesListError(null);
+        } catch (e) {
+          setSalesListError(e instanceof ApiError ? e.message : 'No se pudo cargar el historial de ventas');
+        }
+      } else {
+        setSalesList(null);
+        setSalesListError(null);
+      }
     },
     [],
+  );
+
+  // Punto de entrada único para (re)cargar: fija el rango activo y dispara load().
+  const doLoad = useCallback(
+    (r: { from: string; to: string }, branchId: string) => {
+      setActiveParams({ range: r, branchId });
+      void load(r, branchId);
+    },
+    [load],
   );
 
   // Solo el super admin filtra por sucursal (branch_admin queda scoped por el servidor).
@@ -107,8 +153,33 @@ export default function ReportsPage() {
 
   // Hoy/Ayer (y el filtro de sucursal) cargan automáticamente; Personalizado espera "Aplicar".
   useEffect(() => {
-    if (canView && range !== 'custom') void load(dayRange(range), branchFilter);
-  }, [canView, range, branchFilter, load]);
+    if (canView && range !== 'custom') doLoad(dayRange(range), branchFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canView, range, branchFilter]);
+
+  // Auto-refresh cada 60s del rango activo. reloadToken>0 es un refresco (auto o
+  // manual) sobre el MISMO rango — no un cambio de rango, por eso usa load()
+  // directo (no doLoad, que reescribiría activeParams innecesariamente). El
+  // timeout se reprograma cada vez que reloadToken cambia, así un refresco
+  // manual reinicia el conteo de 60s (y el anillo, que comparte la misma key).
+  useEffect(() => {
+    if (!activeParams) return;
+    if (reloadToken > 0) void load(activeParams.range, activeParams.branchId);
+    const id = setTimeout(() => setReloadToken((t) => t + 1), AUTO_REFRESH_SECONDS * 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadToken, activeParams]);
+
+  async function openSaleDetail(id: string) {
+    setOpenSaleId(id);
+    setOpenSale(null);
+    setOpenSaleError(null);
+    try {
+      setOpenSale(await getSale(id));
+    } catch (e) {
+      setOpenSaleError(e instanceof ApiError ? e.message : 'No se pudo cargar el detalle de la venta');
+    }
+  }
 
   if (!canView) {
     return (
@@ -123,16 +194,34 @@ export default function ReportsPage() {
       a ? 'bg-accent text-ink' : 'bg-bg text-muted'
     }`;
   const maxCat = Math.max(1, ...(report?.byCategory.map((c) => c.totalCents) ?? [1]));
-  const maxHour = Math.max(1, ...(report?.byHour.map((h) => h.totalCents) ?? [1]));
   const maxExpCat = Math.max(1, ...(expenses?.byCategory.map((c) => c.totalCents) ?? [1]));
   const invalidCustom = customFrom > customTo;
+  const rangeTooLargeForList = activeParams
+    ? new Date(activeParams.range.to).getTime() - new Date(activeParams.range.from).getTime() >
+      SALES_LIST_MAX_RANGE_MS
+    : false;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h1 className="min-w-0 break-words text-2xl font-semibold text-ink">
-          {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="min-w-0 break-words text-2xl font-semibold text-ink">
+            {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
+          </h1>
+          {activeParams && (
+            <button
+              type="button"
+              onClick={() => setReloadToken((t) => t + 1)}
+              disabled={loading}
+              aria-label="Actualizar ahora"
+              title="Actualizar ahora"
+              className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-2 pr-1 text-muted transition-colors hover:text-ink disabled:opacity-60"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />
+              <RefreshRing seconds={AUTO_REFRESH_SECONDS} cycleKey={reloadToken} />
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {isSuperAdmin && (
             <select
@@ -182,7 +271,7 @@ export default function ReportsPage() {
             <Button
               disabled={invalidCustom}
               className="min-h-[40px] w-full sm:w-auto"
-              onClick={() => load(customRange(customFrom, customTo), branchFilter)}
+              onClick={() => doLoad(customRange(customFrom, customTo), branchFilter)}
             >
               Aplicar
             </Button>
@@ -196,14 +285,14 @@ export default function ReportsPage() {
           <p className="text-sm text-danger">{error}</p>
         </Card>
       )}
-      {loading && (
+      {loading && !report && (
         <Card>
           <p className="text-muted">Cargando…</p>
         </Card>
       )}
 
-      {report && !loading && (
-        <>
+      {report && (
+        <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : 'opacity-100'}`}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <p className="text-sm text-muted">Total vendido</p>
@@ -281,21 +370,7 @@ export default function ReportsPage() {
 
           <Card>
             <h2 className="mb-3 text-lg font-semibold text-ink">Por horario</h2>
-            {report.byHour.length === 0 ? (
-              <p className="text-sm text-muted">Sin ventas en el rango.</p>
-            ) : (
-              <ul className="space-y-1">
-                {report.byHour.map((h) => (
-                  <li key={h.hour} className="flex items-center gap-2 text-xs">
-                    <span className="w-10 shrink-0 tabular-nums text-muted">{String(h.hour).padStart(2, '0')}h</span>
-                    <div className="h-3 min-w-0 flex-1 rounded bg-bg">
-                      <div className="h-3 rounded bg-accent" style={{ width: `${(h.totalCents / maxHour) * 100}%` }} />
-                    </div>
-                    <span className="w-16 shrink-0 text-right tabular-nums text-ink">${toPesos(h.totalCents)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <HourHeatmap data={report.byHour} />
           </Card>
 
           <Card>
@@ -406,7 +481,7 @@ export default function ReportsPage() {
           </Card>
 
           <Card>
-            <PieChart
+            <DistributionChart
               title="Distribución de ventas por categoría"
               data={report.byCategory.map((c) => ({ label: c.categoryName, value: c.totalCents }))}
               formatValue={(v) => `$${toPesos(v)}`}
@@ -414,14 +489,98 @@ export default function ReportsPage() {
           </Card>
 
           <Card>
-            <PieChart
+            <DistributionChart
               title="Distribución por número de productos vendidos"
               data={report.byCategory.map((c) => ({ label: c.categoryName, value: c.quantity }))}
               formatValue={(v) => `${v} u`}
             />
           </Card>
-        </>
+
+          <Card>
+            <h2 className="mb-3 text-lg font-semibold text-ink">Historial de ventas</h2>
+            {rangeTooLargeForList ? (
+              <p className="text-sm text-muted">
+                Disponible solo para rangos de hasta 2 días — acota el rango para verlo.
+              </p>
+            ) : salesListError ? (
+              <p className="text-sm text-danger">{salesListError}</p>
+            ) : !salesList ? (
+              <p className="text-sm text-muted">Cargando…</p>
+            ) : salesList.length === 0 ? (
+              <p className="text-sm text-muted">Sin ventas en el rango.</p>
+            ) : (
+              <div className="-mx-2 overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                      <th className="px-2 py-2 font-medium">Fecha y hora</th>
+                      <th className="px-2 py-2 font-medium">Cliente</th>
+                      <th className="px-2 py-2 text-right font-medium">Monto</th>
+                      <th className="px-2 py-2 font-medium">Pago</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {salesList.map((s) => (
+                      <tr
+                        key={s.id}
+                        tabIndex={0}
+                        onClick={() => openSaleDetail(s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') openSaleDetail(s.id);
+                        }}
+                        className="cursor-pointer text-ink outline-none transition-colors hover:bg-bg focus:bg-bg"
+                      >
+                        <td className="whitespace-nowrap px-2 py-2 text-muted">
+                          {new Date(s.createdAt).toLocaleString('es-MX', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-2 py-2">{s.customerName ?? '—'}</td>
+                        <td className="px-2 py-2 text-right font-medium tabular-nums">${toPesos(s.totalCents)}</td>
+                        <td className="px-2 py-2">{paymentMethodLabel(s.paymentMethod)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
       )}
+
+      {openSaleId &&
+        (openSale ? (
+          <SaleTicket
+            sale={openSale}
+            onClose={() => {
+              setOpenSaleId(null);
+              setOpenSale(null);
+            }}
+          />
+        ) : (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setOpenSaleId(null)}
+              aria-hidden
+            />
+            <div className="relative w-full max-w-xs rounded-lg bg-surface p-5 text-center shadow-lg">
+              {openSaleError ? (
+                <>
+                  <p className="text-sm text-danger">{openSaleError}</p>
+                  <Button variant="ghost" className="mt-3" onClick={() => setOpenSaleId(null)}>
+                    Cerrar
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted">Cargando…</p>
+              )}
+            </div>
+          </div>
+        ))}
     </div>
   );
 }

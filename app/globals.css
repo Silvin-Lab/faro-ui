@@ -11,6 +11,14 @@ body {
   color: #1a1a1a;
 }
 
+/* Anillo de "próxima actualización" (Reportes) — se llena de vacío a lleno en
+   60s; el componente lo reinicia remontándolo con una `key` distinta. */
+@keyframes ring-fill {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Impresión del ticket: solo se imprime el contenedor .ticket-print */
 @media print {
   body * {

@@ -42,6 +42,21 @@ export const getSalesReport = (params: {
   return api.get<SalesReport>(`/reports/sales?${q.toString()}`);
 };
 
+// --- Historial de ventas (solo rangos ≤48h — el backend lo hace cumplir) ---
+export type SaleListItem = {
+  id: string;
+  createdAt: string;
+  customerName: string | null;
+  totalCents: number;
+  paymentMethod: PaymentMethod;
+};
+
+export const getSalesList = (params: { from: string; to: string; branchId?: string }) => {
+  const q = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.branchId) q.set('branchId', params.branchId);
+  return api.get<{ items: SaleListItem[] }>(`/reports/sales/list?${q.toString()}`).then((r) => r.items);
+};
+
 // --- Reporte de gastos (módulo Gastos) --------------------------------------
 export type ExpenseCategoryBreakdown = { categoryName: string; count: number; totalCents: number };
 export type ExpenseBranchBreakdown = {
