@@ -18,43 +18,14 @@ import { toPesos } from '@/lib/products';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { DistributionChart } from '@/components/ui/PieChart';
 import { HourHeatmap } from '@/components/ui/HourHeatmap';
 import { RefreshRing } from '@/components/ui/RefreshRing';
 import { SaleTicket } from '@/components/SaleTicket';
+import { ReportFilters, REPORTS_PRESETS, type AppliedFilter } from '@/components/ReportFilters';
 
 const AUTO_REFRESH_SECONDS = 60;
 const SALES_LIST_MAX_RANGE_MS = 48 * 60 * 60 * 1000;
-
-const selectClass =
-  'min-h-[40px] w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong sm:w-auto';
-
-type Range = 'today' | 'yesterday' | 'custom';
-
-function todayStr(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-// Rango [from, to) para hoy/ayer (medianoche local).
-function dayRange(r: 'today' | 'yesterday') {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  if (r === 'yesterday') start.setDate(start.getDate() - 1);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { from: start.toISOString(), to: end.toISOString() };
-}
-
-// Rango personalizado a partir de dos fechas 'YYYY-MM-DD' (incluye el día 'to' completo).
-function customRange(fromDate: string, toDate: string) {
-  const start = new Date(`${fromDate}T00:00:00`);
-  const end = new Date(`${toDate}T00:00:00`);
-  end.setDate(end.getDate() + 1);
-  return { from: start.toISOString(), to: end.toISOString() };
-}
 
 export default function ReportsPage() {
   const me = useUser();
@@ -66,17 +37,13 @@ export default function ReportsPage() {
   // Nombre de la sucursal activa (para el encabezado del branch_admin).
   const activeBranchName =
     session.branches.find((b) => b.id === session.activeBranchId)?.name ?? 'Mi sucursal';
-  const [range, setRange] = useState<Range>('today');
-  const [customFrom, setCustomFrom] = useState(todayStr());
-  const [customTo, setCustomTo] = useState(todayStr());
   const [report, setReport] = useState<SalesReport | null>(null);
   // Gastos: se cargan junto a las ventas pero fallan de forma aislada (sección con su error).
   const [expenses, setExpenses] = useState<ExpensesReport | null>(null);
   const [expensesError, setExpensesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // M7: filtro por sucursal. '' = Todas · 'none' = Sin sucursal · <uuid> = una sucursal.
-  const [branchFilter, setBranchFilter] = useState('');
+  // M7: sucursales para el filtro de super_admin (lo gestiona ReportFilters).
   const [branches, setBranches] = useState<Branch[]>([]);
 
   // Historial de ventas (solo si el rango activo es ≤48h).
@@ -151,11 +118,12 @@ export default function ReportsPage() {
     if (isSuperAdmin) listBranches().then(setBranches).catch(() => {});
   }, [isSuperAdmin]);
 
-  // Hoy/Ayer (y el filtro de sucursal) cargan automáticamente; Personalizado espera "Aplicar".
-  useEffect(() => {
-    if (canView && range !== 'custom') doLoad(dayRange(range), branchFilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canView, range, branchFilter]);
+  // ReportFilters resuelve el rango + sucursal y lo emite aquí (Hoy/Ayer cargan al
+  // seleccionarlos o al cambiar sucursal; Personalizado espera "Aplicar").
+  const handleApply = useCallback(
+    (f: AppliedFilter) => doLoad({ from: f.from, to: f.to }, f.branchId),
+    [doLoad],
+  );
 
   // Auto-refresh cada 60s del rango activo. reloadToken>0 es un refresco (auto o
   // manual) sobre el MISMO rango — no un cambio de rango, por eso usa load()
@@ -189,13 +157,8 @@ export default function ReportsPage() {
     );
   }
 
-  const rangeBtn = (a: boolean) =>
-    `min-h-[40px] flex-1 rounded-lg px-3 py-1.5 text-sm font-medium sm:flex-none ${
-      a ? 'bg-accent text-ink' : 'bg-bg text-muted'
-    }`;
   const maxCat = Math.max(1, ...(report?.byCategory.map((c) => c.totalCents) ?? [1]));
   const maxExpCat = Math.max(1, ...(expenses?.byCategory.map((c) => c.totalCents) ?? [1]));
-  const invalidCustom = customFrom > customTo;
   const rangeTooLargeForList = activeParams
     ? new Date(activeParams.range.to).getTime() - new Date(activeParams.range.from).getTime() >
       SALES_LIST_MAX_RANGE_MS
@@ -203,82 +166,32 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="min-w-0 break-words text-2xl font-semibold text-ink">
-            {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
-          </h1>
-          {activeParams && (
-            <button
-              type="button"
-              onClick={() => setReloadToken((t) => t + 1)}
-              disabled={loading}
-              aria-label="Actualizar ahora"
-              title="Actualizar ahora"
-              className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-2 pr-1 text-muted transition-colors hover:text-ink disabled:opacity-60"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />
-              <RefreshRing seconds={AUTO_REFRESH_SECONDS} cycleKey={reloadToken} />
-            </button>
-          )}
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          {isSuperAdmin && (
-            <select
-              aria-label="Filtrar por sucursal"
-              className={selectClass}
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-            >
-              <option value="">Todas las sucursales</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-              <option value="none">Sin sucursal</option>
-            </select>
-          )}
-          <div className="flex gap-2">
-            <button className={rangeBtn(range === 'today')} onClick={() => setRange('today')}>
-              Hoy
-            </button>
-            <button className={rangeBtn(range === 'yesterday')} onClick={() => setRange('yesterday')}>
-              Ayer
-            </button>
-            <button className={rangeBtn(range === 'custom')} onClick={() => setRange('custom')}>
-              Personalizado
-            </button>
+      <ReportFilters
+        presets={REPORTS_PRESETS}
+        showBranchFilter={isSuperAdmin}
+        branches={branches}
+        onApply={handleApply}
+        header={
+          <div className="flex items-center gap-2">
+            <h1 className="min-w-0 break-words text-2xl font-semibold text-ink">
+              {isBranchAdmin ? `Reportes · ${activeBranchName}` : 'Reportes'}
+            </h1>
+            {activeParams && (
+              <button
+                type="button"
+                onClick={() => setReloadToken((t) => t + 1)}
+                disabled={loading}
+                aria-label="Actualizar ahora"
+                title="Actualizar ahora"
+                className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-2 pr-1 text-muted transition-colors hover:text-ink disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />
+                <RefreshRing seconds={AUTO_REFRESH_SECONDS} cycleKey={reloadToken} />
+              </button>
+            )}
           </div>
-        </div>
-      </div>
-
-      {range === 'custom' && (
-        <Card>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="w-full sm:w-auto">
-              <label htmlFor="from" className="mb-1 block text-sm font-medium text-ink">
-                Desde
-              </label>
-              <Input id="from" type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)} />
-            </div>
-            <div className="w-full sm:w-auto">
-              <label htmlFor="to" className="mb-1 block text-sm font-medium text-ink">
-                Hasta
-              </label>
-              <Input id="to" type="date" value={customTo} min={customFrom} onChange={(e) => setCustomTo(e.target.value)} />
-            </div>
-            <Button
-              disabled={invalidCustom}
-              className="min-h-[40px] w-full sm:w-auto"
-              onClick={() => doLoad(customRange(customFrom, customTo), branchFilter)}
-            >
-              Aplicar
-            </Button>
-          </div>
-          {invalidCustom && <p className="mt-2 text-sm text-danger">La fecha "Desde" no puede ser mayor que "Hasta".</p>}
-        </Card>
-      )}
+        }
+      />
 
       {error && (
         <Card>

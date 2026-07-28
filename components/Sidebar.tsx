@@ -23,6 +23,7 @@ import {
   Truck,
   Trash2,
   Handshake,
+  Lightbulb,
 } from 'lucide-react';
 import type { User } from '@/lib/auth';
 
@@ -60,6 +61,12 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
             ],
           },
           {
+            // M9: sección propia, separada de Reportes (comportamiento, no cifras
+            // operativas del día). Lightbulb — nunca connotación de IA.
+            label: 'Insights',
+            items: [{ href: '/insights', label: 'Insights', icon: Lightbulb }],
+          },
+          {
             label: 'Clientes',
             items: [
               { href: '/loyalty', label: 'Lealtad', icon: Heart },
@@ -87,6 +94,8 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
                 { href: '/expenses', label: 'Gastos', icon: Wallet },
                 { href: '/customers', label: 'Clientes', icon: UserRound },
                 { href: '/reports', label: 'Reportes', icon: BarChart3 },
+                // M9: ítem plano junto a Reportes (branch_admin), acotado por el servidor.
+                { href: '/insights', label: 'Insights', icon: Lightbulb },
               ],
             },
           ]
