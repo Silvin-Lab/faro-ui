@@ -35,16 +35,22 @@ export type RecurrenceInsight = {
 export const getRecurrence = (params: InsightParams) =>
   api.get<RecurrenceInsight>(`/insights/recurrence?${buildQuery(params)}`);
 
-// ---- Insight 2: Producto estrella (§5.2) ----------------------------------
+// ---- Insight 2: Producto estrella (§5.2 + addendum categoría) --------------
 export type ProductRevenue = { name: string; revenueCents: number; units: number };
 export type ProductMargin = { name: string; revenueCents: number; marginCents: number };
 // reason: 'no_recipe' (sin receta / borrado) · 'null_cost' (insumo sin costo capturado).
 export type ExcludedProduct = { name: string; reason: 'no_recipe' | 'null_cost' };
+// CategoryRevenue: fila de los rankings por categoría (ingresos y volumen). name =
+// nombre de categoría o 'Sin categoría' (bucket que agrupa productos sin categoría
+// y productos borrados; addendum §1.2). No hay ranking de margen por categoría (§0).
+export type CategoryRevenue = { name: string; revenueCents: number; units: number };
 export type TopProductsInsight = {
   byRevenue: ProductRevenue[];
   byVolume: ProductRevenue[];
   byMargin: ProductMargin[];
   excludedFromMargin: ExcludedProduct[];
+  byCategoryRevenue: CategoryRevenue[];
+  byCategoryVolume: CategoryRevenue[];
 };
 export const getTopProducts = (params: InsightParams) =>
   api.get<TopProductsInsight>(`/insights/top-products?${buildQuery(params)}`);
@@ -72,10 +78,19 @@ export type SecondVisitInsight = {
 export const getSecondVisit = (params: InsightParams) =>
   api.get<SecondVisitInsight>(`/insights/second-visit?${buildQuery(params)}`);
 
-// ---- Insight 5: Afinidad de canasta (§5.5) --------------------------------
+// ---- Insight 5: Afinidad de canasta (§5.5 + addendum categoría) ------------
 // support = ventas que contienen ambos; lift = fuerza normalizada.
 export type BasketPair = { a: string; b: string; support: number; lift: number };
-export type BasketAffinityInsight = { insufficient: boolean; items: BasketPair[] };
+// CategoryPair: par de categorías co-compradas en la misma venta. Mismo shape que
+// BasketPair. categoryInsufficient es INDEPENDIENTE de insufficient (addendum §3.2):
+// cada bloque se evalúa por su propio flag.
+export type CategoryPair = { a: string; b: string; support: number; lift: number };
+export type BasketAffinityInsight = {
+  insufficient: boolean;
+  items: BasketPair[];
+  categoryItems: CategoryPair[];
+  categoryInsufficient: boolean;
+};
 export const getBasketAffinity = (params: InsightParams) =>
   api.get<BasketAffinityInsight>(`/insights/basket-affinity?${buildQuery(params)}`);
 
