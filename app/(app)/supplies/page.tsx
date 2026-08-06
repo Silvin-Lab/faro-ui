@@ -6,6 +6,7 @@ import { useUser } from '@/lib/user-context';
 import {
   listSupplies,
   updateSupply,
+  deleteSupply,
   listSupplyCategories,
   stockLabel,
   type Supply,
@@ -29,6 +30,7 @@ export default function SuppliesPage() {
   const [cat, setCat] = useState('all'); // 'all' | 'none' | categoryId
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function refresh() {
     try {
@@ -52,12 +54,36 @@ export default function SuppliesPage() {
       .catch(() => setCats([]));
   }, [me.isSuperAdmin]);
 
-  async function toggleStatus(s: Supply) {
+  // Soft-delete: pide confirmación y marca el insumo como inactivo. Es
+  // reversible — el insumo sigue listándose (con badge "Inactivo") y se
+  // reactiva con "Activar".
+  async function onDelete(s: Supply) {
+    if (
+      !window.confirm(
+        `¿Eliminar el insumo "${s.name}"? Quedará inactivo y dejará de ofrecerse en recetas y compras. Podrás reactivarlo después.`,
+      )
+    )
+      return;
+    setBusyId(s.id);
     try {
-      await updateSupply(s.id, { status: s.status === 'active' ? 'inactive' : 'active' });
+      await deleteSupply(s.id);
+      await refresh();
+    } catch {
+      /* si falla, el insumo sigue activo; el usuario puede reintentar */
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reactivate(s: Supply) {
+    setBusyId(s.id);
+    try {
+      await updateSupply(s.id, { status: 'active' });
       await refresh();
     } catch {
       /* noop */
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -162,9 +188,23 @@ export default function SuppliesPage() {
                   <Link href={`/supplies/${s.id}/edit`}>
                     <Button variant="ghost">Editar</Button>
                   </Link>
-                  <Button variant="outline" onClick={() => toggleStatus(s)}>
-                    {s.status === 'active' ? 'Desactivar' : 'Activar'}
-                  </Button>
+                  {s.status === 'active' ? (
+                    <Button
+                      variant="outline"
+                      loading={busyId === s.id}
+                      onClick={() => onDelete(s)}
+                    >
+                      Eliminar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      loading={busyId === s.id}
+                      onClick={() => reactivate(s)}
+                    >
+                      Activar
+                    </Button>
+                  )}
                 </div>
               </li>
             ))}

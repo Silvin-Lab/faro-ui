@@ -6,15 +6,27 @@ import { useUser } from '@/lib/user-context';
 import {
   listWarehouseStock,
   updateWarehouseMinMax,
+  adjustWarehouseStock,
   type WarehouseStockItem,
 } from '@/lib/warehouse';
 import { listSupplies, listSupplyCategories, formatBase, type SupplyCategory } from '@/lib/supplies';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Alert } from '@/components/ui/Alert';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+
+// Deriva el badge localmente tras un ajuste manual (misma regla del backend,
+// handoff §2.1): below_min si min definido y stock≤min; no_min si min null; ok.
+function deriveStatus(
+  stockBase: number,
+  minQuantity: number | null,
+): WarehouseStockItem['status'] {
+  if (minQuantity === null) return 'no_min';
+  return stockBase <= minQuantity ? 'below_min' : 'ok';
+}
 
 // Badge derivado del `status` que envía el backend (handoff §2.1).
 function StockStatusBadge({ status }: { status: WarehouseStockItem['status'] }) {
@@ -84,7 +96,23 @@ export default function WarehousePage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-ink">Almacén</h1>
-        <p className="mt-1 text-xs text-muted">Existencias del almacén central.</p>
+        <p className="mt-1 text-xs text-muted">
+          Existencias del almacén central. Usa <span className="text-ink">Ajustar existencia</span>{' '}
+          para fijar cuánto tienes físicamente ahorita (conteo manual); no es una compra ni una
+          salida — esos flujos viven en{' '}
+          <Link href="/warehouse/purchases" className="underline hover:text-ink">
+            Compras
+          </Link>
+          ,{' '}
+          <Link href="/warehouse/dispatches" className="underline hover:text-ink">
+            Salidas
+          </Link>{' '}
+          y{' '}
+          <Link href="/warehouse/waste" className="underline hover:text-ink">
+            Mermas
+          </Link>
+          .
+        </p>
       </div>
 
       {belowMin > 0 && (
@@ -150,6 +178,7 @@ export default function WarehousePage() {
                   <th className="px-2 py-2 font-medium">Mín</th>
                   <th className="px-2 py-2 font-medium">Máx</th>
                   <th className="px-2 py-2 font-medium">Estado</th>
+                  <th className="px-2 py-2 font-medium">Ajustar existencia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -158,7 +187,7 @@ export default function WarehousePage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-3 text-sm text-muted">
+                    <td colSpan={6} className="px-2 py-3 text-sm text-muted">
                       Sin resultados.
                     </td>
                   </tr>
@@ -187,6 +216,13 @@ function StockRow({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Ajuste manual de existencia (fijar el stock físico actual). Independiente de
+  // la edición de mín/máx: escribe cuánto hay ahorita y confirma.
+  const [adjust, setAdjust] = useState(String(item.stockBase));
+  const [adjusting, setAdjusting] = useState(false);
+  const [adjustMsg, setAdjustMsg] = useState<string | null>(null);
+  const [adjustErr, setAdjustErr] = useState<string | null>(null);
 
   const parse = (v: string): number | null => {
     const t = v.trim();
@@ -236,6 +272,35 @@ function StockRow({
     }
   };
 
+  async function confirmAdjust() {
+    const t = adjust.trim();
+    if (t === '') return;
+    const n = Math.round(Number(t));
+    if (!Number.isFinite(n) || n < 0) {
+      setAdjustErr('Escribe una cantidad válida (0 o más).');
+      setAdjustMsg(null);
+      return;
+    }
+    setAdjusting(true);
+    setAdjustErr(null);
+    setAdjustMsg(null);
+    try {
+      const { movement, stockBase } = await adjustWarehouseStock(item.supplyId, n);
+      onSaved({ ...item, stockBase, status: deriveStatus(stockBase, item.minQuantity) });
+      setAdjust(String(stockBase));
+      setAdjustMsg(
+        movement === null
+          ? 'Sin cambios: ya tenías esa existencia.'
+          : `Existencia fijada en ${formatBase(stockBase)} ${item.baseUnit}.`,
+      );
+      setTimeout(() => setAdjustMsg(null), 2500);
+    } catch (e) {
+      setAdjustErr(e instanceof ApiError ? e.message : 'No se pudo ajustar.');
+    } finally {
+      setAdjusting(false);
+    }
+  }
+
   const invalid = err !== null;
 
   return (
@@ -281,6 +346,42 @@ function StockRow({
           {saving && <span className="text-xs text-muted">Guardando…</span>}
           {saved && <span className="text-xs text-success">Guardado</span>}
         </div>
+      </td>
+      <td className="px-2 py-2">
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            inputMode="numeric"
+            step="1"
+            min="0"
+            placeholder="Cuánto hay"
+            value={adjust}
+            onChange={(e) => {
+              setAdjust(e.target.value);
+              setAdjustErr(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void confirmAdjust();
+              }
+            }}
+            disabled={adjusting}
+            aria-label={`Fijar existencia actual de ${item.name} en ${item.baseUnit}`}
+            className={`w-28 tabular-nums ${adjustErr ? 'border-danger' : ''}`}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            loading={adjusting}
+            disabled={adjust.trim() === ''}
+            onClick={() => void confirmAdjust()}
+          >
+            Fijar
+          </Button>
+        </div>
+        {adjustErr && <p className="mt-1 text-xs text-danger">{adjustErr}</p>}
+        {adjustMsg && <p className="mt-1 text-xs text-success">{adjustMsg}</p>}
       </td>
     </tr>
   );

@@ -41,9 +41,9 @@ export default function DispatchesPage() {
 
   useEffect(() => {
     if (!me.isSuperAdmin) return;
-    Promise.all([listSupplies(), listBranches(true)])
+    Promise.all([listSupplies('active'), listBranches(true)])
       .then(([sup, br]) => {
-        setSupplies(sup.filter((s) => s.status === 'active'));
+        setSupplies(sup);
         setBranches(br);
       })
       .catch(() => setLoadError('No se pudieron cargar insumos o sucursales'));

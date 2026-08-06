@@ -70,10 +70,10 @@ function PurchasesInner() {
   }
 
   useEffect(() => {
-    Promise.all([listSuppliers(true), listSupplies()])
+    Promise.all([listSuppliers(true), listSupplies('active')])
       .then(([sup, sup2]) => {
         setSuppliers(sup);
-        setSupplies(sup2.filter((s) => s.status === 'active'));
+        setSupplies(sup2);
       })
       .catch(() => setLoadError('No se pudieron cargar proveedores o insumos'));
     void refreshHistory();

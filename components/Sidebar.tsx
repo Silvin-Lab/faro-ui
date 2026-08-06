@@ -45,8 +45,6 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
             items: [
               { href: '/products', label: 'Productos', icon: Package },
               { href: '/categories', label: 'Categorías', icon: Tags },
-              { href: '/supplies', label: 'Insumos', icon: Boxes },
-              { href: '/supplies/categories', label: 'Categorías de insumo', icon: Tag },
               { href: '/users', label: 'Usuarios', icon: Users },
               { href: '/branches', label: 'Sucursales', icon: Store },
               { href: '/settings', label: 'Negocio', icon: Settings },
@@ -82,6 +80,8 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               { href: '/warehouse/dispatches', label: 'Salidas', icon: Truck },
               { href: '/warehouse/waste', label: 'Mermas', icon: Trash2 },
               { href: '/warehouse/suppliers', label: 'Proveedores', icon: Handshake },
+              { href: '/supplies', label: 'Insumos', icon: Boxes },
+              { href: '/supplies/categories', label: 'Categorías de insumo', icon: Tag },
             ],
           },
         ]

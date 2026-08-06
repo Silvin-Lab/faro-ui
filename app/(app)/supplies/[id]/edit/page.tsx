@@ -7,6 +7,7 @@ import { useUser } from '@/lib/user-context';
 import {
   getSupply,
   updateSupply,
+  deleteSupply,
   listMovements,
   listSupplyCategories,
   createMeasure,
@@ -58,6 +59,9 @@ export default function EditSupplyPage() {
   const [dataForm, setDataForm] = useState<DataForm | null>(null);
   const [savingData, setSavingData] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
+
+  // --- Estado (eliminar / reactivar) ---
+  const [statusBusy, setStatusBusy] = useState(false);
 
   const refreshMovements = useCallback(async () => {
     try {
@@ -135,15 +139,61 @@ export default function EditSupplyPage() {
     }
   }
 
+  async function onDelete() {
+    if (!supply) return;
+    if (
+      !window.confirm(
+        `¿Eliminar el insumo "${supply.name}"? Quedará inactivo y dejará de ofrecerse en recetas y compras. Podrás reactivarlo después.`,
+      )
+    )
+      return;
+    setStatusBusy(true);
+    try {
+      await deleteSupply(supply.id);
+      router.push('/supplies');
+    } catch {
+      setStatusBusy(false);
+    }
+  }
+
+  async function onReactivate() {
+    if (!supply) return;
+    setStatusBusy(true);
+    try {
+      const updated = await updateSupply(supply.id, { status: 'active' });
+      setSupply(updated);
+    } catch {
+      /* si falla, sigue inactivo; el usuario puede reintentar */
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
   const unit = supply.baseUnit;
 
   return (
     <div className="max-w-2xl space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink">Editar insumo</h1>
-        <Button variant="ghost" onClick={() => router.push('/supplies')}>
-          Volver
-        </Button>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-ink">Editar insumo</h1>
+          {supply.status === 'inactive' && (
+            <span className="rounded px-2 py-0.5 text-xs bg-bg text-muted">Inactivo</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {supply.status === 'active' ? (
+            <Button variant="outline" loading={statusBusy} onClick={onDelete}>
+              Eliminar
+            </Button>
+          ) : (
+            <Button variant="outline" loading={statusBusy} onClick={onReactivate}>
+              Activar
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => router.push('/supplies')}>
+            Volver
+          </Button>
+        </div>
       </div>
       <p className="text-xs text-muted">
         El registro de existencias (compras, salidas, mermas) ahora se gestiona en{' '}

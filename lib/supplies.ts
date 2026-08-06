@@ -106,8 +106,14 @@ export type RecipeItemInput =
 
 // --- Catálogo ---
 
-export const listSupplies = () =>
-  api.get<{ items: Supply[] }>('/supplies').then((r) => r.items);
+// `status` opcional filtra el catálogo (retrocompatible; ausente = todos). Los
+// selects de "elegir insumo" (recetas, compras, salidas, mermas) piden 'active'
+// para no ofrecer insumos dados de baja; el listado principal los omite para
+// poder ver/reactivar inactivos.
+export const listSupplies = (status?: 'active' | 'inactive') => {
+  const q = status ? `?status=${status}` : '';
+  return api.get<{ items: Supply[] }>(`/supplies${q}`).then((r) => r.items);
+};
 
 export const getSupply = (id: string) =>
   api.get<{ supply: Supply }>(`/supplies/${id}`).then((r) => r.supply);
@@ -117,6 +123,10 @@ export const createSupply = (input: SupplyCreateInput) =>
 
 export const updateSupply = (id: string, input: SupplyUpdateInput) =>
   api.patch<{ supply: Supply }>(`/supplies/${id}`, input).then((r) => r.supply);
+
+// Soft-delete: marca el insumo como `inactive` (204, idempotente). Reversible
+// vía `updateSupply(id, { status: 'active' })`.
+export const deleteSupply = (id: string) => api.delete<void>(`/supplies/${id}`);
 
 // --- Categorías de insumo ---
 

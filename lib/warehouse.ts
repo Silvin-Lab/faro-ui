@@ -39,6 +39,17 @@ export const updateWarehouseMinMax = (
     .patch<{ item: WarehouseStockItem }>(`/warehouse/stock/${supplyId}`, input)
     .then((r) => r.item);
 
+// Ajuste manual de existencia: fija el stock a `newQuantity` (unidad base, ≥0).
+// NO es una compra: registra un movimiento de ajuste (o `null` si el valor no
+// cambió — no-op). `date` opcional (YYYY-MM-DD); ausente → hoy. Devuelve el
+// `stockBase` resultante para refrescar la fila. El backend valida ≥0
+// (400 validation_error) y existencia del insumo (404 not_found).
+export const adjustWarehouseStock = (supplyId: string, newQuantity: number, date?: string) =>
+  api.post<{ movement: WarehouseMovement | null; stockBase: number }>(
+    `/warehouse/stock/${supplyId}/adjust`,
+    date ? { newQuantity, date } : { newQuantity },
+  );
+
 // --- Productos a comprar (F4) ---
 
 export type ToBuyItem = {
