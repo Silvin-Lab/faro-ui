@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getProduct, updateProduct, toCents, toPesos } from '@/lib/products';
+import { useUser } from '@/lib/user-context';
+import {
+  getProduct,
+  updateProduct,
+  toCents,
+  toPesos,
+  type FulfillmentType,
+} from '@/lib/products';
 import { listCategories, type Category } from '@/lib/categories';
 import {
   listSupplies,
@@ -22,14 +29,23 @@ import { ImageUpload } from '@/components/ImageUpload';
 const selectClass =
   'w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-strong';
 
-type FormState = { name: string; price: string; categoryId: string; imageUrl: string };
+type FormState = {
+  name: string;
+  price: string;
+  categoryId: string;
+  imageUrl: string;
+  fulfillmentType: FulfillmentType;
+};
 
 export default function EditProductPage() {
   const router = useRouter();
+  const me = useUser();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [cats, setCats] = useState<Category[]>([]);
   const [form, setForm] = useState<FormState | null>(null);
+  // Tipo original persistido: sirve para saber si el submit cambia el tipo (D7/D-C).
+  const [originalType, setOriginalType] = useState<FulfillmentType>('branch_prepared');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +57,9 @@ export default function EditProductPage() {
           price: toPesos(p.priceCents),
           categoryId: p.categoryId ?? '',
           imageUrl: p.imageUrl ?? '',
+          fulfillmentType: p.fulfillmentType,
         });
+        setOriginalType(p.fulfillmentType);
         setCats(c.filter((x) => x.status === 'active'));
       })
       .catch(() => setError('No se pudo cargar el producto'));
@@ -58,10 +76,32 @@ export default function EditProductPage() {
         priceCents: toCents(form.price),
         categoryId: form.categoryId || null,
         imageUrl: form.imageUrl || null,
+        // Solo el super_admin puede cambiar el tipo; y solo lo enviamos si cambió.
+        ...(me.isSuperAdmin && form.fulfillmentType !== originalType
+          ? { fulfillmentType: form.fulfillmentType }
+          : {}),
       });
       router.push('/products');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error al guardar');
+      // 409 fulfillment_change_blocked: bakery → branch_prepared con pedidos
+      // abiertos o stock de postre. Explicar con los conteos que trae el backend.
+      if (err instanceof ApiError && err.code === 'fulfillment_change_blocked') {
+        const open = Number(err.body?.openOrders ?? 0);
+        const withStock = Number(err.body?.branchesWithStock ?? 0);
+        const parts: string[] = [];
+        if (open > 0) parts.push(`${open} ${open === 1 ? 'pedido abierto' : 'pedidos abiertos'}`);
+        if (withStock > 0)
+          parts.push(
+            `${withStock} ${withStock === 1 ? 'sucursal con stock' : 'sucursales con stock'}`,
+          );
+        setError(
+          `No se puede cambiar a "Preparado en sucursal": el postre tiene ${parts.join(
+            ' y ',
+          )}. Surte o cancela los pedidos y deja el stock de postre en cero antes de cambiarlo.`,
+        );
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Error al guardar');
+      }
       setSubmitting(false);
     }
   }
@@ -116,6 +156,26 @@ export default function EditProductPage() {
             ))}
           </select>
         </FormField>
+        {me.isSuperAdmin && (
+          <FormField label="¿Cómo se surte?" htmlFor="fulfillmentType">
+            <select
+              id="fulfillmentType"
+              className={selectClass}
+              value={form.fulfillmentType}
+              onChange={(e) =>
+                setForm({ ...form, fulfillmentType: e.target.value as FulfillmentType })
+              }
+            >
+              <option value="branch_prepared">Preparado en sucursal</option>
+              <option value="bakery">De repostería central</option>
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              {form.fulfillmentType === 'bakery'
+                ? 'El postre se produce en la central y se surte a las sucursales por pedido; su receta se consume al producir.'
+                : 'El producto se prepara en la sucursal; su receta se descuenta del stock al vender.'}
+            </p>
+          </FormField>
+        )}
         <FormField label="Imagen">
           <ImageUpload value={form.imageUrl || null} onChange={(url) => setForm({ ...form, imageUrl: url })} />
         </FormField>
@@ -131,7 +191,7 @@ export default function EditProductPage() {
       </form>
     </Card>
 
-    <RecipeSection productId={id} />
+    <RecipeSection productId={id} fulfillmentType={form.fulfillmentType} />
     </div>
   );
 }
@@ -148,7 +208,13 @@ export default function EditProductPage() {
 // como round(count × baseQuantity) para el preview y el costo en vivo.
 type RecipeRow = { supplyId: string; measureId: string; quantity: string };
 
-function RecipeSection({ productId }: { productId: string }) {
+function RecipeSection({
+  productId,
+  fulfillmentType,
+}: {
+  productId: string;
+  fulfillmentType: FulfillmentType;
+}) {
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [rows, setRows] = useState<RecipeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,7 +318,9 @@ function RecipeSection({ productId }: { productId: string }) {
     <Card>
       <h2 className="mb-1 text-lg font-semibold text-ink">Receta</h2>
       <p className="mb-3 text-xs text-muted">
-        Insumos que consume una unidad de este producto. Se descuentan del stock al vender.
+        {fulfillmentType === 'bakery'
+          ? 'Insumos que consume producir una unidad de este postre en la repostería central. Se descuentan del almacén central al registrar la producción (no al vender).'
+          : 'Insumos que consume una unidad de este producto. Se descuentan del stock al vender.'}
       </p>
       {loading ? (
         <p className="text-sm text-muted">Cargando…</p>

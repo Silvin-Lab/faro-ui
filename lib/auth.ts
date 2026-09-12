@@ -4,8 +4,9 @@ import { api } from './api';
 export type BranchRef = { id: string; name: string };
 
 // M8: rol del usuario. super_admin administra el negocio; los demás operan una sucursal.
-export type Role = 'super_admin' | 'branch_admin' | 'cashier' | 'barista';
-// Roles asignables a un usuario de sucursal (no incluye super_admin).
+// M10: `repostero` opera la repostería central (sin sucursal, F21).
+export type Role = 'super_admin' | 'branch_admin' | 'cashier' | 'barista' | 'repostero';
+// Roles asignables a un usuario de sucursal (no incluye super_admin ni repostero).
 export type BranchRole = 'branch_admin' | 'cashier' | 'barista';
 
 export type User = {
@@ -39,8 +40,10 @@ export type Session = {
 };
 
 // Destino final para un usuario con la sucursal ya resuelta (post-login o post select-branch).
-// super_admin y branch_admin aterrizan en Reportes; cashier/barista en el POS.
+// super_admin y branch_admin aterrizan en Reportes; cashier/barista en el POS;
+// M10: repostero aterriza en su cola de producción (no tiene sucursal, F21).
 export function roleLandingPath(role: Role): string {
+  if (role === 'repostero') return '/bakery/queue';
   return role === 'super_admin' || role === 'branch_admin' ? '/reports' : '/pos';
 }
 
@@ -70,6 +73,7 @@ export const selectBranch = (branchId: string) =>
 export const listUsers = () => api.get<{ items: User[] }>('/users').then((r) => r.items);
 
 // M8: acepta role. Si role='super_admin' NO se envían branchIds (el super admin es global).
+// M10: `repostero` tampoco lleva sucursal (F21): el backend rechaza branchIds no vacío.
 export const createUser = (input: {
   email: string;
   password: string;
@@ -78,7 +82,8 @@ export const createUser = (input: {
   branchIds: string[];
 }) => {
   const { branchIds, ...rest } = input;
-  const body = input.role === 'super_admin' ? rest : { ...rest, branchIds };
+  const global = input.role === 'super_admin' || input.role === 'repostero';
+  const body = global ? rest : { ...rest, branchIds };
   return api.post<{ user: User }>('/users', body);
 };
 

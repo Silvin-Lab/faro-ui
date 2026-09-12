@@ -107,3 +107,28 @@ export type LoyaltySegment = {
 export type LoyaltyEffectInsight = { redeemed: LoyaltySegment; notRedeemed: LoyaltySegment };
 export const getLoyaltyEffect = (params: InsightParams) =>
   api.get<LoyaltyEffectInsight>(`/insights/loyalty-effect?${buildQuery(params)}`);
+
+// ---- M10: Tendencia de venta de postres (§5.9) ----------------------------
+// Compara semana en curso vs. anterior por postre (fulfillment_type='bakery').
+// Ventanas fijas (sin selector de rango): el backend las calcula con el tz.
+// Scope por rol: repostero/super_admin todas (branchId opcional); branch_admin
+// acotado por el servidor a su sucursal; cashier/barista → 403.
+// `deltaPct` null cuando unitsPrevious=0 (guarda de división → "nuevo").
+export type BakeryTrendWeek = { from: string; to: string };
+export type BakeryTrendItem = {
+  productName: string;
+  unitsPrevious: number;
+  unitsCurrent: number;
+  deltaUnits: number;
+  deltaPct: number | null;
+};
+export type BakeryTrendInsight = {
+  weekCurrent: BakeryTrendWeek;
+  weekPrevious: BakeryTrendWeek;
+  items: BakeryTrendItem[];
+};
+export const getBakeryTrend = (branchId?: string) => {
+  const q = new URLSearchParams({ tz: String(new Date().getTimezoneOffset()) });
+  if (branchId) q.set('branchId', branchId);
+  return api.get<BakeryTrendInsight>(`/insights/bakery-trend?${q.toString()}`);
+};

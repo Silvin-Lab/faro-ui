@@ -4,13 +4,17 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 // ApiError lleva el status y el código de error del backend para manejar 401/409/429.
+// `body` conserva el JSON completo del error para códigos que traen campos extra
+// (p.ej. 409 fulfillment_change_blocked → { openOrders, branchesWithStock }).
 export class ApiError extends Error {
   status: number;
   code?: string;
-  constructor(status: number, message: string, code?: string) {
+  body?: Record<string, unknown>;
+  constructor(status: number, message: string, code?: string, body?: Record<string, unknown>) {
     super(message);
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -72,10 +76,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let code: string | undefined;
     let message = `Error ${res.status}`;
+    let body: Record<string, unknown> | undefined;
     try {
-      const body = await res.json();
-      code = body.code;
-      if (body.message) message = body.message;
+      body = await res.json();
+      code = body?.code as string | undefined;
+      if (body?.message) message = body.message as string;
     } catch {
       /* respuesta sin cuerpo JSON */
     }
@@ -84,7 +89,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 401 && !path.startsWith('/auth/login')) {
       markSessionExpired();
     }
-    throw new ApiError(res.status, message, code);
+    throw new ApiError(res.status, message, code, body);
   }
   // Cualquier respuesta exitosa implica que la sesión es válida de nuevo. Si la
   // bandera de "sesión expirada" había quedado pegajosa (p.ej. un 401 legítimo de

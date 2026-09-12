@@ -19,11 +19,13 @@ export type ExpenseConcept = {
 };
 
 // Gasto registrado: el backend snapshotea concepto/categoría/sucursal y quién lo capturó.
+// branchId/branchName pueden ser null: gasto "General" sin sucursal (solo super_admin).
 export type Expense = {
   id: string;
   conceptName: string;
   categoryName: string;
-  branchName: string;
+  branchId: string | null;
+  branchName: string | null;
   createdByName: string;
   amountCents: number;
   createdAt: string;
@@ -71,7 +73,19 @@ export const listExpenses = (params: { from: string; to: string; branchId?: stri
   return api.get<{ items: Expense[] }>(`/expenses?${q.toString()}`).then((r) => r.items);
 };
 
-export const createExpense = (input: { conceptId: string; amountCents: number }) =>
-  api.post<{ expense: Expense }>('/expenses', input).then((r) => r.expense);
+// branchId: solo lo envía el super_admin (id de sucursal, o null para gasto "General").
+// Para usuarios de sucursal se omite (undefined) y el backend usa su sucursal de sesión.
+export const createExpense = (input: {
+  conceptId: string;
+  amountCents: number;
+  branchId?: string | null;
+}) => {
+  const body: { conceptId: string; amountCents: number; branchId?: string | null } = {
+    conceptId: input.conceptId,
+    amountCents: input.amountCents,
+  };
+  if (input.branchId !== undefined) body.branchId = input.branchId;
+  return api.post<{ expense: Expense }>('/expenses', body).then((r) => r.expense);
+};
 
 export const deleteExpense = (id: string) => api.delete<void>(`/expenses/${id}`);

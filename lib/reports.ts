@@ -59,8 +59,9 @@ export const getSalesList = (params: { from: string; to: string; branchId?: stri
 
 // --- Reporte de gastos (módulo Gastos) --------------------------------------
 export type ExpenseCategoryBreakdown = { categoryName: string; count: number; totalCents: number };
+// branchId null = bucket "General" (gastos sin sucursal).
 export type ExpenseBranchBreakdown = {
-  branchId: string;
+  branchId: string | null;
   branchName: string;
   count: number;
   totalCents: number;

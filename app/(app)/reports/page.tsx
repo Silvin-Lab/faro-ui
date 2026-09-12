@@ -335,7 +335,7 @@ export default function ReportsPage() {
                     <h3 className="mb-2 mt-4 text-sm font-semibold text-ink">Por sucursal</h3>
                     <ul className="space-y-1">
                       {expenses.byBranch.map((b) => (
-                        <li key={b.branchId} className="flex justify-between gap-2 text-sm">
+                        <li key={b.branchId ?? 'none'} className="flex justify-between gap-2 text-sm">
                           <span className="min-w-0 truncate text-ink">
                             {b.branchName} <span className="text-muted">· {b.count}</span>
                           </span>

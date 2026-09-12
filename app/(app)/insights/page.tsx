@@ -12,6 +12,7 @@ import { TicketSegmentsCard } from '@/components/insights/TicketSegmentsCard';
 import { SecondVisitCard } from '@/components/insights/SecondVisitCard';
 import { BasketAffinityCard } from '@/components/insights/BasketAffinityCard';
 import { LoyaltyEffectCard } from '@/components/insights/LoyaltyEffectCard';
+import { BakeryTrend } from '@/components/bakery/BakeryTrend';
 
 // M9 · Insights. Un selector compartido (rango + sucursal) gobierna las 6
 // tarjetas; cada una carga de forma aislada (una que falla no tumba la página).
@@ -74,6 +75,10 @@ export default function InsightsPage() {
         <SecondVisitCard filter={filter} />
         <BasketAffinityCard filter={filter} />
         <LoyaltyEffectCard filter={filter} />
+        {/* M10: tendencia de postres. super_admin elige sucursal; branch_admin la
+            acota el servidor (sin selector). Ventanas fijas: semana vs. semana,
+            independiente del rango del selector superior. */}
+        <BakeryTrend showBranchFilter={isSuperAdmin} showHeader={false} />
       </div>
     </div>
   );

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createProduct, toCents } from '@/lib/products';
+import { useUser } from '@/lib/user-context';
+import { createProduct, toCents, type FulfillmentType } from '@/lib/products';
 import { listCategories, type Category } from '@/lib/categories';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -16,8 +17,15 @@ const selectClass =
 
 export default function NewProductPage() {
   const router = useRouter();
+  const me = useUser();
   const [cats, setCats] = useState<Category[]>([]);
-  const [form, setForm] = useState({ name: '', price: '', categoryId: '', imageUrl: '' });
+  const [form, setForm] = useState<{
+    name: string;
+    price: string;
+    categoryId: string;
+    imageUrl: string;
+    fulfillmentType: FulfillmentType;
+  }>({ name: '', price: '', categoryId: '', imageUrl: '', fulfillmentType: 'branch_prepared' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +45,9 @@ export default function NewProductPage() {
         priceCents: toCents(form.price),
         categoryId: form.categoryId || null,
         imageUrl: form.imageUrl || null,
+        ...(me.isSuperAdmin && form.fulfillmentType !== 'branch_prepared'
+          ? { fulfillmentType: form.fulfillmentType }
+          : {}),
       });
       router.push('/products');
     } catch (err) {
@@ -79,6 +90,26 @@ export default function NewProductPage() {
             ))}
           </select>
         </FormField>
+        {me.isSuperAdmin && (
+          <FormField label="¿Cómo se surte?" htmlFor="fulfillmentType">
+            <select
+              id="fulfillmentType"
+              className={selectClass}
+              value={form.fulfillmentType}
+              onChange={(e) =>
+                setForm({ ...form, fulfillmentType: e.target.value as FulfillmentType })
+              }
+            >
+              <option value="branch_prepared">Preparado en sucursal</option>
+              <option value="bakery">De repostería central</option>
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              {form.fulfillmentType === 'bakery'
+                ? 'El postre se produce en la central y se surte a las sucursales por pedido; su receta se consume al producir.'
+                : 'El producto se prepara en la sucursal; su receta se descuenta del stock al vender.'}
+            </p>
+          </FormField>
+        )}
         <FormField label="Imagen">
           <ImageUpload value={form.imageUrl || null} onChange={(url) => setForm({ ...form, imageUrl: url })} />
         </FormField>

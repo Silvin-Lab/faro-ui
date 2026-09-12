@@ -17,6 +17,7 @@ const ROLE_LABEL: Record<Role, string> = {
   branch_admin: 'Admin de sucursal',
   cashier: 'Cajero',
   barista: 'Barista',
+  repostero: 'Repostero',
 };
 
 // Roles de sucursal (asignables a usuarios que operan una sucursal).
@@ -115,9 +116,10 @@ export default function UsersPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const isSuper = form.role === 'super_admin';
-    // El súper admin es global; los demás roles requieren al menos una sucursal.
-    if (!isSuper && formBranchIds.size === 0) {
+    // super_admin y repostero son globales (sin sucursal, F21); los demás
+    // roles requieren al menos una sucursal.
+    const isGlobal = form.role === 'super_admin' || form.role === 'repostero';
+    if (!isGlobal && formBranchIds.size === 0) {
       setFormErr('Asigna al menos una sucursal.');
       return;
     }
@@ -226,14 +228,14 @@ export default function UsersPage() {
                   <span className="text-xs text-muted">
                     Sucursales:{' '}
                     <span className="text-ink">
-                      {u.role === 'super_admin'
+                      {u.role === 'super_admin' || u.role === 'repostero'
                         ? '—'
                         : u.branches && u.branches.length > 0
                           ? u.branches.map((b) => b.name).join(', ')
                           : 'Sin sucursal'}
                     </span>
                   </span>
-                  {u.role !== 'super_admin' && (
+                  {u.role !== 'super_admin' && u.role !== 'repostero' && (
                     <button
                       type="button"
                       onClick={() => startEdit(u)}
@@ -292,9 +294,10 @@ export default function UsersPage() {
               <option value="branch_admin">{ROLE_LABEL.branch_admin}</option>
               <option value="cashier">{ROLE_LABEL.cashier}</option>
               <option value="barista">{ROLE_LABEL.barista}</option>
+              <option value="repostero">{ROLE_LABEL.repostero}</option>
             </select>
           </FormField>
-          {form.role !== 'super_admin' && (
+          {form.role !== 'super_admin' && form.role !== 'repostero' && (
             <FormField label="Sucursales (elige al menos una)">
               <BranchChecklist branches={activeBranches} selected={formBranchIds} onToggle={toggleForm} />
             </FormField>

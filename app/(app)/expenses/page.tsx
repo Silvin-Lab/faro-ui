@@ -9,6 +9,8 @@ import {
   type ExpenseConcept,
   type Expense,
 } from '@/lib/expenses';
+import { listBranches, type Branch } from '@/lib/branches';
+import { useUser } from '@/lib/user-context';
 import { toPesos, toCents } from '@/lib/products';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -35,15 +37,29 @@ function hourLabel(iso: string): string {
 }
 
 export default function ExpensesPage() {
+  const me = useUser();
+  // M7 v2: solo el super_admin elige sucursal (o "General"); los demás quedan scoped por sesión.
+  const isSuperAdmin = me.role === 'super_admin';
   const [concepts, setConcepts] = useState<ExpenseConcept[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [conceptId, setConceptId] = useState('');
+  // '' = gasto "General" (sin sucursal); un id = esa sucursal. Solo aplica a super_admin.
+  const [branchId, setBranchId] = useState('');
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Sucursales activas para el selector del super_admin (no bloquea la carga principal).
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    listBranches(true)
+      .then(setBranches)
+      .catch(() => setBranches([]));
+  }, [isSuperAdmin]);
 
   const refreshExpenses = useCallback(async () => {
     setListError(null);
@@ -98,7 +114,13 @@ export default function ExpensesPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createExpense({ conceptId, amountCents });
+      // Solo el super_admin manda branchId (id elegido, o null para "General").
+      // Para usuarios de sucursal se omite: el backend usa su sucursal de sesión.
+      await createExpense(
+        isSuperAdmin
+          ? { conceptId, amountCents, branchId: branchId || null }
+          : { conceptId, amountCents },
+      );
       setAmount('');
       setConceptId('');
       await refreshExpenses();
@@ -150,6 +172,23 @@ export default function ExpensesPage() {
               ))}
             </select>
           </FormField>
+          {isSuperAdmin && (
+            <FormField label="Sucursal" htmlFor="branchId">
+              <select
+                id="branchId"
+                className={selectClass}
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+              >
+                <option value="">General (sin sucursal)</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
           <FormField label="Monto" htmlFor="amount">
             <Input
               id="amount"
@@ -193,6 +232,7 @@ export default function ExpensesPage() {
                   <div className="truncate text-sm text-ink">{exp.conceptName}</div>
                   <div className="text-xs text-muted">
                     {hourLabel(exp.createdAt)} · {exp.createdByName}
+                    {isSuperAdmin && ` · ${exp.branchName ?? 'General'}`}
                   </div>
                 </div>
                 <span className="shrink-0 text-sm font-medium tabular-nums text-ink">

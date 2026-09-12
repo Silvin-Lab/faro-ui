@@ -1,5 +1,9 @@
 import { api } from './api';
 
+// M10: cómo se surte el producto. `branch_prepared` (default) se consume al vender;
+// `bakery` se produce en la central y su receta se consume al producir (no al vender).
+export type FulfillmentType = 'branch_prepared' | 'bakery';
+
 export type Product = {
   id: string;
   tenantId: string;
@@ -9,6 +13,7 @@ export type Product = {
   priceCents: number;
   status: 'active' | 'inactive';
   imageUrl: string | null;
+  fulfillmentType: FulfillmentType;
   createdAt: string;
 };
 
@@ -18,6 +23,16 @@ type ProductInput = {
   categoryId?: string | null;
   imageUrl?: string | null;
   status?: 'active' | 'inactive';
+  // M10: solo super_admin puede enviarlo; el backend valida el rol.
+  fulfillmentType?: FulfillmentType;
+};
+
+// M10: 409 al intentar pasar de bakery → branch_prepared con pedidos abiertos o
+// stock de postre. El backend devuelve los conteos para explicar el bloqueo.
+export type FulfillmentChangeBlocked = {
+  code: 'fulfillment_change_blocked';
+  openOrders: number;
+  branchesWithStock: number;
 };
 
 export const listProducts = () =>

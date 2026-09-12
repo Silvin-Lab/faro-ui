@@ -24,6 +24,10 @@ import {
   Trash2,
   Handshake,
   Lightbulb,
+  ChefHat,
+  Cake,
+  CakeSlice,
+  TrendingUp,
 } from 'lucide-react';
 import type { User } from '@/lib/auth';
 
@@ -38,7 +42,19 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
   // Administración / Operación / Clientes / Almacén; el admin de sucursal y el
   // cajero/barista operan el día a día (menú corto, sin agrupar).
   const groups: NavGroup[] =
-    user.role === 'super_admin'
+    user.role === 'repostero'
+      ? [
+          // M10: repostero — grupo plano (sin encabezados), landing /bakery/queue.
+          {
+            label: null,
+            items: [
+              { href: '/bakery/queue', label: 'Cola de producción', icon: ChefHat },
+              { href: '/bakery/supplies', label: 'Insumos', icon: Boxes },
+              { href: '/bakery/trend', label: 'Tendencia de venta', icon: TrendingUp },
+            ],
+          },
+        ]
+      : user.role === 'super_admin'
       ? [
           {
             label: 'Administración',
@@ -84,6 +100,15 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               { href: '/supplies/categories', label: 'Categorías de insumo', icon: Tag },
             ],
           },
+          {
+            // M10: opera la repostería en ausencia del repostero. La tendencia de
+            // postres para super_admin vive dentro de Insights, no aquí.
+            label: 'Repostería',
+            items: [
+              { href: '/bakery/queue', label: 'Cola de producción', icon: ChefHat },
+              { href: '/bakery/stock', label: 'Stock de postres', icon: Cake },
+            ],
+          },
         ]
       : user.role === 'branch_admin'
         ? [
@@ -96,6 +121,9 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
                 { href: '/reports', label: 'Reportes', icon: BarChart3 },
                 // M9: ítem plano junto a Reportes (branch_admin), acotado por el servidor.
                 { href: '/insights', label: 'Insights', icon: Lightbulb },
+                // M10: pedidos a repostería + stock de postres (tendencia va en Insights).
+                { href: '/bakery/orders', label: 'Pedidos a repostería', icon: CakeSlice },
+                { href: '/bakery/stock', label: 'Stock de postres', icon: Cake },
               ],
             },
           ]
@@ -105,6 +133,9 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               items: [
                 { href: '/pos', label: 'Punto de venta', icon: ShoppingCart },
                 { href: '/expenses', label: 'Gastos', icon: Wallet },
+                // M10: cashier/barista — pedidos + stock (sin tendencia, F19).
+                { href: '/bakery/orders', label: 'Pedidos a repostería', icon: CakeSlice },
+                { href: '/bakery/stock', label: 'Stock de postres', icon: Cake },
               ],
             },
           ];
