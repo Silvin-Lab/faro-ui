@@ -152,6 +152,123 @@ export const listBakeryProductions = (params?: {
     .then((r) => r.items);
 };
 
+// --- Merma de postre (M11) ---
+
+// Respuesta de POST /bakery/waste: el movimiento 'waste' recién escrito (Quantity
+// negativo) + el StockQty resultante de la sucursal para reflejarlo de inmediato.
+export type BakeryWasteMovement = {
+  id: string;
+  productId: string;
+  productName: string;
+  branchId: string;
+  quantity: number; // negativo
+  reason: string | null;
+  stockQty: number;
+  createdAt: string;
+};
+
+// Fila del historial de mermas de postre (GET /bakery/waste). Quantity negativo.
+export type BakeryWasteItem = {
+  id: string;
+  productId: string;
+  productName: string;
+  branchId: string;
+  branchName: string;
+  quantity: number; // negativo
+  reason: string | null;
+  createdByName: string | null;
+  createdAt: string;
+};
+
+// Registrar merma de postre — sucursal (su sucursal activa, forzada por backend)
+// o super_admin (branchId obligatorio). NO se envía branchId desde la sucursal.
+export const createBakeryWaste = (input: {
+  productId: string;
+  quantity: number; // >0 (se registra como −qty)
+  reason: string;
+  branchId?: string; // solo super_admin
+}) =>
+  api.post<{ movement: BakeryWasteMovement; stockQty: number }>('/bakery/waste', {
+    productId: input.productId,
+    quantity: input.quantity,
+    reason: input.reason,
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+  });
+
+export const listBakeryWaste = (params?: { branchId?: string; from?: string; to?: string }) => {
+  const q = new URLSearchParams();
+  if (params?.branchId) q.set('branchId', params.branchId);
+  if (params?.from) q.set('from', params.from);
+  if (params?.to) q.set('to', params.to);
+  const s = q.toString();
+  return api
+    .get<{ items: BakeryWasteItem[] }>(`/bakery/waste${s ? `?${s}` : ''}`)
+    .then((r) => r.items);
+};
+
+// --- Conteo de cierre de postres (M11) ---
+
+// Qué se dio de baja/ajustó por una línea de conteo: "waste" (diff<0),
+// "adjustment" (diff>0) o null (diff=0, sin movimiento).
+export type BakeryCountMovementType = 'waste' | 'adjustment';
+
+// Encabezado de un conteo de cierre de postres de una sucursal.
+export type BakeryCount = {
+  id: string;
+  branchId: string;
+  branchName: string;
+  note: string | null;
+  createdByName: string | null;
+  createdAt: string;
+};
+
+// Línea de un conteo: lo esperado (stock en cache al momento), lo contado y la
+// diferencia. diffQty<0 = merma automática; diffQty>0 = sobrante (ajuste).
+export type BakeryCountItem = {
+  id: string;
+  productId: string;
+  productName: string;
+  expectedQty: number;
+  countedQty: number;
+  diffQty: number;
+  movementId: string | null;
+  movementType: BakeryCountMovementType | null;
+};
+
+// Detalle de un conteo: encabezado + líneas.
+export type BakeryCountDetail = {
+  count: BakeryCount;
+  items: BakeryCountItem[];
+};
+
+// Registrar conteo de cierre — sucursal (su sucursal activa, forzada) o super_admin
+// (branchId obligatorio). Devuelve el detalle línea por línea con el diff y el
+// movimiento generado (merma/ajuste) por cada producto.
+export const createBakeryCount = (input: {
+  note?: string;
+  branchId?: string; // solo super_admin
+  items: { productId: string; countedQty: number }[];
+}) =>
+  api.post<BakeryCountDetail>('/bakery/counts', {
+    ...(input.note && input.note.trim() !== '' ? { note: input.note.trim() } : {}),
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+    items: input.items.map((it) => ({ productId: it.productId, countedQty: it.countedQty })),
+  });
+
+export const getBakeryCount = (id: string) =>
+  api.get<BakeryCountDetail>(`/bakery/counts/${id}`);
+
+export const listBakeryCounts = (params?: { branchId?: string; from?: string; to?: string }) => {
+  const q = new URLSearchParams();
+  if (params?.branchId) q.set('branchId', params.branchId);
+  if (params?.from) q.set('from', params.from);
+  if (params?.to) q.set('to', params.to);
+  const s = q.toString();
+  return api
+    .get<{ items: BakeryCount[] }>(`/bakery/counts${s ? `?${s}` : ''}`)
+    .then((r) => r.items);
+};
+
 // --- Helpers de presentación ---
 
 // Falta = pedido − surtido (nunca negativo para la UI).

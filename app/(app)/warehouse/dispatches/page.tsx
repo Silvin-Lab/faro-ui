@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useUser } from '@/lib/user-context';
 import {
   createDispatch,
@@ -22,12 +23,41 @@ import { FormField } from '@/components/ui/FormField';
 
 export default function DispatchesPage() {
   const me = useUser();
+  if (!me.isSuperAdmin) {
+    return (
+      <Card>
+        <p className="text-muted">Solo el administrador del negocio gestiona el almacén.</p>
+      </Card>
+    );
+  }
+  return (
+    <Suspense fallback={<Card><p className="text-muted">Cargando…</p></Card>}>
+      <DispatchesInner />
+    </Suspense>
+  );
+}
+
+function DispatchesInner() {
+  // M11: al surtir desde Requisiciones se llega con la línea pre-seleccionada
+  // (requisitionItemId + supplyId + branchId + quantityBase). requisitionItemId liga
+  // la salida a la línea para avanzar el estado de la requisición.
+  const searchParams = useSearchParams();
+  const requisitionItemId = searchParams.get('requisitionItemId') ?? '';
+  const prefillSupplyId = searchParams.get('supplyId') ?? '';
+  const prefillBranchId = searchParams.get('branchId') ?? '';
+  const prefillQty = searchParams.get('quantityBase') ?? '';
+
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [history, setHistory] = useState<DispatchHistoryItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ date: todayISO(), supplyId: '', quantity: '', branchId: '' });
+  const [form, setForm] = useState({
+    date: todayISO(),
+    supplyId: prefillSupplyId,
+    quantity: prefillQty,
+    branchId: prefillBranchId,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +70,6 @@ export default function DispatchesPage() {
   }
 
   useEffect(() => {
-    if (!me.isSuperAdmin) return;
     Promise.all([listSupplies('active'), listBranches(true)])
       .then(([sup, br]) => {
         setSupplies(sup);
@@ -48,7 +77,7 @@ export default function DispatchesPage() {
       })
       .catch(() => setLoadError('No se pudieron cargar insumos o sucursales'));
     void refreshHistory();
-  }, [me.isSuperAdmin]);
+  }, []);
 
   const supply = useMemo(
     () => supplies.find((s) => s.id === form.supplyId) ?? null,
@@ -73,6 +102,7 @@ export default function DispatchesPage() {
         branchId: form.branchId,
         quantityBase: quantity,
         date: form.date,
+        ...(requisitionItemId ? { requisitionItemId } : {}),
       });
       setForm((f) => ({ ...f, quantity: '' }));
       await refreshHistory();
@@ -83,17 +113,16 @@ export default function DispatchesPage() {
     }
   }
 
-  if (!me.isSuperAdmin) {
-    return (
-      <Card>
-        <p className="text-muted">Solo el administrador del negocio gestiona el almacén.</p>
-      </Card>
-    );
-  }
-
   return (
     <div className="max-w-3xl space-y-4">
       <h1 className="text-2xl font-semibold text-ink">Salidas</h1>
+      {requisitionItemId && (
+        <p className="rounded-lg border border-line bg-bg px-4 py-3 text-sm text-ink">
+          Estás surtiendo una línea de una{' '}
+          <span className="font-medium">requisición de sucursal</span>. Al registrar la salida se
+          acreditará a esa requisición automáticamente.
+        </p>
+      )}
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold text-ink">Registrar salida</h2>

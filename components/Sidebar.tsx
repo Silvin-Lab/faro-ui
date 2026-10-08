@@ -20,6 +20,8 @@ import {
   ShoppingCart,
   Warehouse,
   ClipboardList,
+  ClipboardCheck,
+  Calculator,
   Truck,
   Trash2,
   Handshake,
@@ -94,6 +96,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               { href: '/warehouse/to-buy', label: 'Productos a comprar', icon: ShoppingCart },
               { href: '/warehouse/purchases', label: 'Compras', icon: Receipt },
               { href: '/warehouse/dispatches', label: 'Salidas', icon: Truck },
+              { href: '/requisitions', label: 'Requisiciones', icon: ClipboardCheck },
               { href: '/warehouse/waste', label: 'Mermas', icon: Trash2 },
               { href: '/warehouse/suppliers', label: 'Proveedores', icon: Handshake },
               { href: '/supplies', label: 'Insumos', icon: Boxes },
@@ -124,6 +127,8 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
                 // M10: pedidos a repostería + stock de postres (tendencia va en Insights).
                 { href: '/bakery/orders', label: 'Pedidos a repostería', icon: CakeSlice },
                 { href: '/bakery/stock', label: 'Stock de postres', icon: Cake },
+                // M11: cierre de día / corte de caja.
+                { href: '/dayclose', label: 'Cierre de día', icon: Calculator },
               ],
             },
           ]
@@ -136,6 +141,8 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
                 // M10: cashier/barista — pedidos + stock (sin tendencia, F19).
                 { href: '/bakery/orders', label: 'Pedidos a repostería', icon: CakeSlice },
                 { href: '/bakery/stock', label: 'Stock de postres', icon: Cake },
+                // M11: cierre de día / corte de caja.
+                { href: '/dayclose', label: 'Cierre de día', icon: Calculator },
               ],
             },
           ];

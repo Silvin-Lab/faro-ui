@@ -160,6 +160,10 @@ export type DispatchInput = {
   branchId: string; // requerido
   quantityBase: number; // >0 (se registra como −qty)
   date?: string;
+  // M11: liga la salida a una línea de requisición para acreditar lo surtido y
+  // avanzar su estado (pending → partial → fulfilled). 400 invalid_requisition_item
+  // si la línea no corresponde a este insumo.
+  requisitionItemId?: string;
 };
 
 export type DispatchHistoryItem = {
