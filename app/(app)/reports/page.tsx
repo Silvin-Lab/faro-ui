@@ -239,6 +239,40 @@ export default function ReportsPage() {
             )}
           </Card>
 
+          {report.agreementDiscounts && (
+            <Card>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-ink">Descuentos de convenio</h2>
+                <span className="shrink-0 text-sm text-muted">
+                  {report.agreementDiscounts.salesCount}{' '}
+                  {report.agreementDiscounts.salesCount === 1 ? 'venta' : 'ventas'}
+                </span>
+              </div>
+              {report.agreementDiscounts.salesCount === 0 ? (
+                <p className="text-sm text-muted">Sin descuentos de convenio en el rango.</p>
+              ) : (
+                <>
+                  <p className="mb-4 break-words text-3xl font-bold tabular-nums text-ink sm:text-4xl">
+                    ${toPesos(report.agreementDiscounts.totalCents)}
+                  </p>
+                  <h3 className="mb-2 text-sm font-semibold text-ink">Por porcentaje</h3>
+                  <ul className="space-y-1">
+                    {report.agreementDiscounts.byPercent.map((p) => (
+                      <li key={p.percent} className="flex justify-between gap-2 text-sm">
+                        <span className="min-w-0 truncate text-ink">
+                          {p.percent}% <span className="text-muted">· {p.count}</span>
+                        </span>
+                        <span className="shrink-0 font-medium tabular-nums text-ink">
+                          ${toPesos(p.totalCents)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Card>
+          )}
+
           {isSuperAdmin && report.byBranch && report.byBranch.length > 0 && (
             <Card>
               <h2 className="mb-3 text-lg font-semibold text-ink">Por sucursal</h2>
@@ -423,13 +457,15 @@ export default function ReportsPage() {
               <p className="text-sm text-muted">Sin ventas en el rango.</p>
             ) : (
               <div className="-mx-2 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
+                <table className="w-full min-w-[720px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
                       <th className="px-2 py-2 font-medium">Fecha y hora</th>
                       <th className="px-2 py-2 font-medium">Cliente</th>
                       <th className="px-2 py-2 text-right font-medium">Monto</th>
                       <th className="px-2 py-2 font-medium">Pago</th>
+                      <th className="px-2 py-2 font-medium">Convenio</th>
+                      <th className="px-2 py-2 font-medium">Cobró</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -454,6 +490,19 @@ export default function ReportsPage() {
                         <td className="px-2 py-2">{s.customerName ?? '—'}</td>
                         <td className="px-2 py-2 text-right font-medium tabular-nums">${toPesos(s.totalCents)}</td>
                         <td className="px-2 py-2">{paymentMethodLabel(s.paymentMethod)}</td>
+                        <td className="whitespace-nowrap px-2 py-2 tabular-nums">
+                          {(s.agreementDiscountCents ?? 0) > 0 ? (
+                            <span className="text-ink">
+                              {s.agreementDiscountPercent != null ? `${s.agreementDiscountPercent}% · ` : ''}
+                              −${toPesos(s.agreementDiscountCents ?? 0)}
+                            </span>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2">
+                          {s.soldByName ?? <span className="text-muted">Sin registro</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

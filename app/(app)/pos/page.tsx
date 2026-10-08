@@ -12,6 +12,7 @@ import {
   type CustomerLoyaltyStatus,
   type PromotionStatus,
 } from '@/lib/loyalty';
+import { listAgreementDiscounts, type AgreementDiscount } from '@/lib/agreementDiscounts';
 import { ApiError, markSessionExpired } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -93,6 +94,9 @@ export default function PosPage() {
   const [detailModal, setDetailModal] = useState(false);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null); // promotionProductId (unidad)
+  // M12: catálogo de descuentos de convenio activos + el seleccionado (uno por venta).
+  const [agreementDiscounts, setAgreementDiscounts] = useState<AgreementDiscount[]>([]);
+  const [selectedAgreementDiscountId, setSelectedAgreementDiscountId] = useState<string | null>(null);
 
   // M7 v2: sucursal activa (de la sesión) para el encabezado "Faro. {sucursal}".
   const branchName = useMemo(
@@ -109,6 +113,10 @@ export default function PosPage() {
       listCategories()
         .then((c) => setCats(c.filter((x) => x.status === 'active')))
         .catch(() => {});
+      // M12: descuentos de convenio activos (ya vienen ordenados por % asc).
+      listAgreementDiscounts('active')
+        .then(setAgreementDiscounts)
+        .catch(() => {});
     }
   }, [me.isSuperAdmin]);
 
@@ -117,6 +125,9 @@ export default function PosPage() {
   useEffect(() => {
     setSelectedPromotionId(null);
     setSelectedProductId(null);
+    // M12: al quitar/cambiar el cliente se descarta el descuento de convenio
+    // (los botones vuelven a deshabilitarse sin cliente asociado).
+    setSelectedAgreementDiscountId(null);
     setLoyaltyStatus(null);
     if (!customer) return;
     let cancelled = false;
@@ -192,7 +203,21 @@ export default function PosPage() {
     }
   }
   discountCents = Math.min(discountCents, subtotalCents);
-  const totalCents = subtotalCents - discountCents; // total a cobrar
+
+  // M12: descuento de convenio (si hay uno seleccionado y el cliente está
+  // asociado). El servidor es autoritativo; aquí replicamos su fórmula half-up
+  // sobre el subtotal restante tras lealtad: (remaining*pct + 50) / 100, acotado
+  // a [0, remaining]. Solo es display; el total que vale es el que devuelve la venta.
+  const selectedAgreementDiscount: AgreementDiscount | null =
+    (customer && agreementDiscounts.find((d) => d.id === selectedAgreementDiscountId)) || null;
+  let agreementCents = 0;
+  if (selectedAgreementDiscount) {
+    const remaining = subtotalCents - discountCents;
+    agreementCents = Math.floor((remaining * selectedAgreementDiscount.percent + 50) / 100);
+    agreementCents = Math.max(0, Math.min(agreementCents, remaining));
+  }
+
+  const totalCents = subtotalCents - discountCents - agreementCents; // total a cobrar (neto de ambos)
 
   const paidCents = toCents(paid);
   const changeCents = paidCents - totalCents;
@@ -230,6 +255,7 @@ export default function PosPage() {
     setCustomer(null);
     setSelectedPromotionId(null);
     setSelectedProductId(null);
+    setSelectedAgreementDiscountId(null);
   }
 
   // Deja el POS como al inicio: sin venta y con la categoría en "Todas".
@@ -258,7 +284,11 @@ export default function PosPage() {
         method,
         method === 'cash' ? paidCents : 0,
         customer?.id ?? null,
-        { promotionId: selectedPromotion?.promotionId ?? null, promotionProductId: selectedProductId },
+        {
+          promotionId: selectedPromotion?.promotionId ?? null,
+          promotionProductId: selectedProductId,
+          agreementDiscountId: selectedAgreementDiscount?.id ?? null,
+        },
       );
       setAfterSale(true);
       setTicket(sale);
@@ -274,6 +304,12 @@ export default function PosPage() {
       } else if (e instanceof ApiError && e.code === 'insufficient_payment') setError('El monto recibido es menor al total.');
       else if (e instanceof ApiError && e.code === 'promotion_not_eligible')
         setError('La promoción ya no es aplicable para este cliente.');
+      else if (e instanceof ApiError && e.code === 'agreement_discount_not_eligible')
+        // El convenio requiere cliente y debe seguir activo. La venta NO se
+        // registró: se conserva el carrito para corregir y reintentar.
+        setError(
+          'El descuento de convenio no se pudo aplicar (requiere un cliente asociado y que el descuento siga activo). La venta NO se registró: revisa el cliente/descuento y cobra de nuevo.',
+        );
       else setError(e instanceof ApiError ? e.message : 'No se pudo cobrar.');
     } finally {
       setSubmitting(false);
@@ -570,22 +606,69 @@ export default function PosPage() {
             )}
           </div>
 
-          {discountCents > 0 && (
+          {/* M12: botones de descuento de convenio (uno por descuento activo).
+              Deshabilitados mientras la venta no tenga cliente asociado; toque
+              selecciona, otro toque lo quita; uno solo por venta. */}
+          {agreementDiscounts.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-ink">Descuento de convenio</p>
+                {!customer && (
+                  <span className="text-xs text-muted">Asocia un cliente para aplicarlo</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {agreementDiscounts.map((d) => {
+                  const on = selectedAgreementDiscountId === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      aria-pressed={on}
+                      disabled={!customer}
+                      onClick={() =>
+                        setSelectedAgreementDiscountId((cur) => (cur === d.id ? null : d.id))
+                      }
+                      className={`min-w-[64px] rounded-lg border px-4 py-2 text-base font-semibold tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        on
+                          ? 'border-accent-strong bg-accent text-ink'
+                          : 'border-line bg-surface text-ink hover:border-accent-strong'
+                      }`}
+                    >
+                      {d.percent}%
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(discountCents > 0 || agreementCents > 0) && (
             <div className="mt-4 space-y-1 text-sm">
               <div className="flex justify-between text-muted">
                 <span>Subtotal</span>
                 <span>${toPesos(subtotalCents)}</span>
               </div>
-              <div className="flex justify-between font-medium text-accent-strong">
-                <span className="min-w-0 truncate pr-2">
-                  {selectedPromotion?.name ?? 'Descuento lealtad'}
-                </span>
-                <span>−${toPesos(discountCents)}</span>
-              </div>
+              {discountCents > 0 && (
+                <div className="flex justify-between font-medium text-accent-strong">
+                  <span className="min-w-0 truncate pr-2">
+                    {selectedPromotion?.name ?? 'Descuento lealtad'}
+                  </span>
+                  <span>−${toPesos(discountCents)}</span>
+                </div>
+              )}
+              {agreementCents > 0 && (
+                <div className="flex justify-between font-medium text-accent-strong">
+                  <span className="min-w-0 truncate pr-2">
+                    Convenio ({selectedAgreementDiscount?.percent}%)
+                  </span>
+                  <span>−${toPesos(agreementCents)}</span>
+                </div>
+              )}
             </div>
           )}
           <div
-            className={`${discountCents > 0 ? 'mt-1' : 'mt-4'} flex items-center justify-between rounded-lg bg-accent/25 px-4 py-2`}
+            className={`${discountCents > 0 || agreementCents > 0 ? 'mt-1' : 'mt-4'} flex items-center justify-between rounded-lg bg-accent/25 px-4 py-2`}
           >
             <span className="text-sm font-medium uppercase tracking-wide text-ink">Total</span>
             <span className="text-2xl font-bold text-ink">${toPesos(totalCents)}</span>

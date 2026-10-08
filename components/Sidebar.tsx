@@ -23,6 +23,7 @@ import {
   Truck,
   Trash2,
   Handshake,
+  BadgePercent,
   Lightbulb,
 } from 'lucide-react';
 import type { User } from '@/lib/auth';
@@ -68,6 +69,7 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
             label: 'Clientes',
             items: [
               { href: '/loyalty', label: 'Lealtad', icon: Heart },
+              { href: '/agreement-discounts', label: 'Convenios', icon: BadgePercent },
               { href: '/customers', label: 'Clientes', icon: UserRound },
             ],
           },

@@ -18,6 +18,13 @@ export function SaleTicket({
   cashier?: string;
   onClose: () => void;
 }) {
+  const agreementCents = sale.agreementDiscountCents ?? 0;
+  // Total es NETO de ambos descuentos → el subtotal los reconstruye.
+  const subtotalCents = sale.totalCents + sale.discountCents + agreementCents;
+  const hasDiscount = sale.discountCents > 0 || agreementCents > 0;
+  // M12: quién cobró. El servidor manda soldByName (null ⇒ "Sin registro"); se
+  // respeta el prop `cashier` como respaldo para backends previos sin el campo.
+  const soldBy = sale.soldByName ?? cashier ?? null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="no-print absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
@@ -27,7 +34,6 @@ export function SaleTicket({
             <div className="text-lg font-bold">Faro</div>
             <div className="text-xs text-muted">Ticket de venta</div>
             <div className="text-xs text-muted">{new Date(sale.createdAt).toLocaleString()}</div>
-            {cashier && <div className="text-xs text-muted">Cajero: {cashier}</div>}
           </div>
           <hr className="my-2 border-line" />
           <ul>
@@ -41,16 +47,26 @@ export function SaleTicket({
             ))}
           </ul>
           <hr className="my-2 border-line" />
-          {sale.discountCents > 0 && (
+          {hasDiscount && (
             <>
               <div className="flex justify-between text-muted">
                 <span>Subtotal</span>
-                <span>${toPesos(sale.totalCents + sale.discountCents)}</span>
+                <span>${toPesos(subtotalCents)}</span>
               </div>
-              <div className="flex justify-between text-muted">
-                <span className="min-w-0 truncate pr-2">{sale.promotionName ?? 'Descuento lealtad'}</span>
-                <span>−${toPesos(sale.discountCents)}</span>
-              </div>
+              {sale.discountCents > 0 && (
+                <div className="flex justify-between text-muted">
+                  <span className="min-w-0 truncate pr-2">{sale.promotionName ?? 'Descuento lealtad'}</span>
+                  <span>−${toPesos(sale.discountCents)}</span>
+                </div>
+              )}
+              {agreementCents > 0 && (
+                <div className="flex justify-between text-muted">
+                  <span className="min-w-0 truncate pr-2">
+                    Convenio{sale.agreementDiscountPercent != null ? ` (${sale.agreementDiscountPercent}%)` : ''}
+                  </span>
+                  <span>−${toPesos(agreementCents)}</span>
+                </div>
+              )}
             </>
           )}
           <div className="flex justify-between font-semibold">
@@ -67,6 +83,10 @@ export function SaleTicket({
               <span className="truncate">{sale.customerName}</span>
             </div>
           )}
+          <div className="flex justify-between">
+            <span>Cobró</span>
+            <span className="truncate">{soldBy ?? 'Sin registro'}</span>
+          </div>
           {sale.paymentMethod === 'cash' && (
             <>
               <div className="flex justify-between">

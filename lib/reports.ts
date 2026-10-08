@@ -18,6 +18,19 @@ export type BranchBreakdown = {
   salesCount: number;
 };
 
+// M12: resumen de descuentos de convenio del período. totalCents/salesCount del
+// reporte siguen siendo NETOS (no cambian); este bloque es informativo aparte.
+export type AgreementDiscountPercentBreakdown = {
+  percent: number;
+  count: number;
+  totalCents: number;
+};
+export type AgreementDiscountsSummary = {
+  salesCount: number; // ventas con convenio en el período
+  totalCents: number; // suma de los descuentos de convenio otorgados
+  byPercent: AgreementDiscountPercentBreakdown[];
+};
+
 export type SalesReport = {
   totalCents: number;
   salesCount: number;
@@ -28,6 +41,8 @@ export type SalesReport = {
   byBranch?: BranchBreakdown[];
   // Aditivo: puede no venir en backends previos.
   byProduct?: ProductBreakdown[];
+  // Aditivo (M12): puede no venir en backends previos.
+  agreementDiscounts?: AgreementDiscountsSummary;
 };
 
 // branchId: undefined = todas · 'none' = sin sucursal (branch_id IS NULL) · <uuid> = una sucursal.
@@ -49,6 +64,10 @@ export type SaleListItem = {
   customerName: string | null;
   totalCents: number;
   paymentMethod: PaymentMethod;
+  // Aditivo (M12): descuento de convenio y quién cobró. Null/0 si no aplica.
+  agreementDiscountPercent?: number | null;
+  agreementDiscountCents?: number;
+  soldByName?: string | null;
 };
 
 export const getSalesList = (params: { from: string; to: string; branchId?: string }) => {

@@ -27,11 +27,18 @@ export const paymentMethodLabel = (m: PaymentMethod | string): string =>
 export type Sale = {
   id: string;
   tenantId: string;
-  totalCents: number;
+  totalCents: number; // neto de AMBOS descuentos (lealtad + convenio)
   amountPaidCents: number;
   changeCents: number;
-  discountCents: number; // descuento de lealtad calculado en servidor
+  discountCents: number; // descuento de lealtad calculado en servidor (SOLO lealtad)
   promotionName: string | null; // nombre de la promo aplicada (o null)
+  // M12 convenio-discounts: descuento de convenio (separado del de lealtad).
+  agreementDiscountId: string | null;
+  agreementDiscountPercent: number | null; // snapshot del % aplicado (o null)
+  agreementDiscountCents: number; // monto del descuento de convenio (0 si no hubo)
+  // M12: usuario que cobró la venta. null en ventas históricas ⇒ "Sin registro".
+  soldByUserId: string | null;
+  soldByName: string | null;
   paymentMethod: PaymentMethod;
   customerId: string | null;
   customerName: string | null;
@@ -46,7 +53,13 @@ export const createSale = (
   paymentMethod: PaymentMethod,
   amountPaidCents: number,
   customerId?: string | null,
-  opts?: { promotionId?: string | null; promotionProductId?: string | null },
+  opts?: {
+    promotionId?: string | null;
+    promotionProductId?: string | null;
+    // M12: id del descuento de convenio elegido (requiere customerId; el monto
+    // lo calcula el servidor). Sin cliente ⇒ 422 agreement_discount_not_eligible.
+    agreementDiscountId?: string | null;
+  },
 ) =>
   api
     .post<{ sale: Sale }>('/sales', {
@@ -56,6 +69,7 @@ export const createSale = (
       customerId: customerId ?? null,
       promotionId: opts?.promotionId ?? null,
       promotionProductId: opts?.promotionProductId ?? null,
+      agreementDiscountId: opts?.agreementDiscountId ?? null,
     })
     .then((r) => r.sale);
 
