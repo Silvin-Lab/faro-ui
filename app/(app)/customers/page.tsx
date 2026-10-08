@@ -7,7 +7,9 @@ import {
   listCustomers,
   createCustomer,
   setCustomerVisits,
+  getCustomerVisitChanges,
   type Customer,
+  type VisitChange,
 } from '@/lib/customers';
 import { ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -27,6 +29,12 @@ function friendlyError(e: unknown, fallback: string): string {
 }
 
 // Fila de resultado con acción "Ajustar visitas" inline (migración de tarjeta física).
+// Etiqueta corta del origen de un cambio de visitas.
+const VISIT_SOURCE_LABEL: Record<VisitChange['source'], string> = {
+  create: 'Alta',
+  adjust: 'Ajuste',
+};
+
 function CustomerRow({
   customer,
   onUpdated,
@@ -38,11 +46,23 @@ function CustomerRow({
   const [value, setValue] = useState(String(customer.visits));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Historial de cambios de visitas (alta + ajustes), solo mientras se edita.
+  const [changes, setChanges] = useState<VisitChange[] | null>(null);
+  const [changesError, setChangesError] = useState<string | null>(null);
+
+  function loadChanges() {
+    setChanges(null);
+    setChangesError(null);
+    getCustomerVisitChanges(customer.id)
+      .then(setChanges)
+      .catch((e) => setChangesError(friendlyError(e, 'No se pudo cargar el historial.')));
+  }
 
   function startEdit() {
     setValue(String(customer.visits));
     setError(null);
     setEditing(true);
+    loadChanges();
   }
 
   async function save() {
@@ -72,6 +92,10 @@ function CustomerRow({
             {customer.firstName} {customer.lastName}
           </p>
           <p className="text-xs text-muted">{customer.phone}</p>
+          <p className="text-xs text-muted">
+            Registrado por:{' '}
+            <span className="text-ink">{customer.createdByName ?? 'Sin registro'}</span>
+          </p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted">
           <span>
@@ -119,6 +143,45 @@ function CustomerRow({
               Cancelar
             </Button>
           </div>
+
+          <div className="border-t border-line pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              Historial de visitas
+            </p>
+            {changesError ? (
+              <p className="text-xs text-danger">{changesError}</p>
+            ) : changes === null ? (
+              <p className="text-xs text-muted">Cargando…</p>
+            ) : changes.length === 0 ? (
+              <p className="text-xs text-muted">Sin cambios registrados.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {changes.map((ch) => (
+                  <li
+                    key={ch.id}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs"
+                  >
+                    <span className="text-ink">
+                      <span className="rounded-full bg-bg px-2 py-0.5 font-medium text-muted">
+                        {VISIT_SOURCE_LABEL[ch.source]}
+                      </span>{' '}
+                      de <span className="font-medium">{ch.visitsBefore}</span> a{' '}
+                      <span className="font-medium">{ch.visitsAfter}</span>
+                    </span>
+                    <span className="text-muted">
+                      {ch.byName ?? 'Sin registro'} ·{' '}
+                      {new Date(ch.createdAt).toLocaleString('es-MX', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </li>
@@ -126,7 +189,13 @@ function CustomerRow({
 }
 
 // Alta de cliente con visitas previas opcionales (fijadas en la misma alta).
-function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
+function NewCustomerForm({
+  onCreated,
+  canSetPriorVisits,
+}: {
+  onCreated: (c: Customer) => void;
+  canSetPriorVisits: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -145,7 +214,7 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const raw = priorVisits.trim();
+    const raw = canSetPriorVisits ? priorVisits.trim() : '';
     const visits = raw === '' ? 0 : Number(raw);
     if (raw !== '' && (!Number.isInteger(visits) || visits < 0)) {
       setError('Las visitas previas deben ser un número entero mayor o igual a 0.');
@@ -213,22 +282,26 @@ function NewCustomerForm({ onCreated }: { onCreated: (c: Customer) => void }) {
             required
           />
         </FormField>
-        <FormField label="Visitas previas (opcional)" htmlFor="new-visits">
-          <Input
-            id="new-visits"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            value={priorVisits}
-            onChange={(e) => setPriorVisits(e.target.value)}
-            className="max-w-[8rem]"
-          />
-        </FormField>
-        <p className="text-xs text-muted">
-          Si el cliente ya tenía visitas en su tarjeta física, indícalas aquí; se sumarán también a
-          las de por vida.
-        </p>
+        {canSetPriorVisits && (
+          <>
+            <FormField label="Visitas previas (opcional)" htmlFor="new-visits">
+              <Input
+                id="new-visits"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={priorVisits}
+                onChange={(e) => setPriorVisits(e.target.value)}
+                className="max-w-[8rem]"
+              />
+            </FormField>
+            <p className="text-xs text-muted">
+              Si el cliente ya tenía visitas en su tarjeta física, indícalas aquí; se sumarán también a
+              las de por vida.
+            </p>
+          </>
+        )}
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex items-center gap-2">
           <Button type="submit" loading={busy}>
@@ -363,7 +436,10 @@ export default function CustomersPage() {
             Busca clientes y ajusta sus visitas (migración de tarjetas físicas de lealtad).
           </p>
         </div>
-        <NewCustomerForm onCreated={upsert} />
+        <NewCustomerForm
+          onCreated={upsert}
+          canSetPriorVisits={me.role === 'super_admin' || me.role === 'branch_admin'}
+        />
       </div>
 
       <Card>

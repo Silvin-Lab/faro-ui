@@ -8,6 +8,20 @@ export type Customer = {
   lastName: string;
   visits: number; // visitas del ciclo actual (lealtad)
   visitsLifetime: number; // acumulado de por vida (nunca reinicia)
+  // Quién dio de alta al cliente. null en registros previos ⇒ "Sin registro".
+  createdByName: string | null;
+  createdAt: string;
+};
+
+// Un cambio en el contador de visitas del cliente (alta con visitas previas o
+// ajuste manual de un admin). Solo visible para admins.
+export type VisitChange = {
+  id: string;
+  visitsBefore: number;
+  visitsAfter: number;
+  source: 'create' | 'adjust';
+  byUserId: string | null;
+  byName: string | null; // null ⇒ "Sin registro"
   createdAt: string;
 };
 
@@ -39,3 +53,10 @@ export const createCustomer = (input: {
 // Solo super_admin / branch_admin (el backend responde 403 en caso contrario).
 export const setCustomerVisits = (id: string, visits: number) =>
   api.patch<{ customer: Customer }>(`/customers/${id}/visits`, { visits }).then((r) => r.customer);
+
+// Historial de cambios de visitas (alta + ajustes), más recientes primero.
+// Solo admins (el backend responde 403 en caso contrario).
+export const getCustomerVisitChanges = (id: string) =>
+  api
+    .get<{ items: VisitChange[] }>(`/customers/${id}/visit-changes`)
+    .then((r) => r.items);

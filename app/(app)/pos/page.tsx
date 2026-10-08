@@ -786,6 +786,7 @@ export default function PosPage() {
       )}
       {customerModal && (
         <CustomerModal
+          canSetPriorVisits={me.role === 'super_admin' || me.role === 'branch_admin'}
           onSelect={(c) => {
             setCustomer(c);
             setCustomerModal(false);
@@ -828,7 +829,16 @@ export default function PosPage() {
   );
 }
 
-function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void; onClose: () => void }) {
+function CustomerModal({
+  onSelect,
+  onClose,
+  canSetPriorVisits,
+}: {
+  onSelect: (c: Customer) => void;
+  onClose: () => void;
+  // Solo super_admin / branch_admin ven y pueden fijar visitas previas.
+  canSetPriorVisits: boolean;
+}) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Customer[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -896,14 +906,15 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
     setLoading(true);
     setError(null);
     try {
-      // Si ya había venido antes (tarjeta física, o el cajero lo recuerda), las
-      // visitas anteriores se fijan en la misma alta — un cajero puede hacerlo
-      // aunque no tenga permiso para ajustar visitas de un cliente ya existente.
-      const visits = priorVisits.trim() === '' ? 0 : Math.round(Number(priorVisits));
+      // Las visitas previas (tarjeta física) solo las fija un admin; cajero/barista
+      // no envían el campo (el backend rechaza priorVisits>0 de esos roles con 403).
+      const visits = canSetPriorVisits && priorVisits.trim() !== '' ? Math.round(Number(priorVisits)) : 0;
       const c = await createCustomer({ phone: phone.trim(), firstName, lastName, priorVisits: visits });
       onSelect(c);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'No se pudo registrar el cliente.');
+      if (e instanceof ApiError && e.code === 'prior_visits_forbidden')
+        setError('Solo un administrador o gerente puede registrar visitas previas.');
+      else setError(e instanceof ApiError ? e.message : 'No se pudo registrar el cliente.');
     } finally {
       setLoading(false);
     }
@@ -1023,23 +1034,27 @@ function CustomerModal({ onSelect, onClose }: { onSelect: (c: Customer) => void;
                   setError(null);
                 }}
               />
-              <label htmlFor="cpriorvisits" className="block text-sm font-medium text-ink">
-                Visitas anteriores
-              </label>
-              <Input
-                id="cpriorvisits"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                placeholder="0"
-                value={priorVisits}
-                onChange={(e) => setPriorVisits(e.target.value)}
-              />
-              <p className="text-xs text-muted">
-                Si esta persona ya venía antes (aunque sea la primera vez que la registras en el
-                sistema), indica aquí cuántas visitas trae para no arrancarla en cero.
-              </p>
+              {canSetPriorVisits && (
+                <>
+                  <label htmlFor="cpriorvisits" className="block text-sm font-medium text-ink">
+                    Visitas anteriores
+                  </label>
+                  <Input
+                    id="cpriorvisits"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    placeholder="0"
+                    value={priorVisits}
+                    onChange={(e) => setPriorVisits(e.target.value)}
+                  />
+                  <p className="text-xs text-muted">
+                    Si esta persona ya venía antes (aunque sea la primera vez que la registras en el
+                    sistema), indica aquí cuántas visitas trae para no arrancarla en cero.
+                  </p>
+                </>
+              )}
             </div>
 
             {error && <p className="mt-2 text-sm text-danger">{error}</p>}
