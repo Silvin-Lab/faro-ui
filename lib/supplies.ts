@@ -50,7 +50,10 @@ export type Supply = {
 type SupplyCreateInput = {
   name: string;
   baseUnit: BaseUnit;
-  packageName: string;
+  // packageName es opcional: si se omite o llega vacío, el backend lo autogenera
+  // como "{packageContent} {baseUnit}" (p.ej. "1000 ml"). El alta en línea del
+  // recetario no lo pide.
+  packageName?: string;
   packageContent: number;
   packageCostCents?: number | null;
   categoryId?: string | null;
@@ -92,10 +95,26 @@ export type RecipeItem = {
   supplyId: string;
   supplyName: string;
   baseUnit: BaseUnit;
-  quantityBase: number; // fuente de verdad del descuento en unidad base
+  quantityBase: number; // fuente de verdad del descuento en unidad base (decimal, ≤3)
   measureId: string | null; // si la línea se capturó por medida
   measureName: string | null; // snapshot de la medida para pintar sin cruzar catálogos
   measureCount: number | null; // número de medidas (admite fraccionales)
+  unitCostCents: number | null; // costo por unidad base (centavos, decimal); null si el insumo no tiene costo
+  lineCostCents: number | null; // quantityBase × unitCostCents; null si el insumo no tiene costo
+};
+
+// Costo de la receta de un producto (pantallas Recetario / Precios).
+// `costCents` es DECIMAL en centavos: Σ(quantityBase × costo unitario) de las
+// líneas cuyo insumo tiene costo. `missingCostSupplies` cuenta las líneas cuyo
+// insumo no tiene costo capturado (no suman a `costCents`).
+export type RecipeCost = {
+  id: string; // id del producto
+  name: string;
+  categoryName: string | null;
+  priceCents: number; // precio actual del producto (entero)
+  costCents: number; // decimal en centavos
+  recipeLines: number;
+  missingCostSupplies: number;
 };
 
 // Item de guardado de receta: por medida (measureId + measureCount) o en unidad
@@ -162,6 +181,10 @@ export const getRecipe = (productId: string) =>
 export const saveRecipe = (productId: string, items: RecipeItemInput[]) =>
   api.put<{ items: RecipeItem[] }>(`/supplies/recipes/${productId}`, { items }).then((r) => r.items);
 
+// Costos por producto (pantallas Recetario / Precios). Solo super_admin.
+export const listRecipeCosts = () =>
+  api.get<{ items: RecipeCost[] }>('/supplies/recipes/costs').then((r) => r.items);
+
 // --- Medidas de uso (por insumo) ---
 
 export const listMeasures = (supplyId: string) =>
@@ -210,3 +233,52 @@ export const packageEquivalent = (stockBase: number, packageContent: number): st
 //   "1,800 ml ≈ 2.0 × Bote 900 ml"
 export const stockLabel = (s: Supply, stockBase: number): string =>
   `${formatBase(stockBase)} ${s.baseUnit} ≈ ${packageEquivalent(stockBase, s.packageContent)} × ${s.packageName}`;
+
+// Etiqueta "Nombre (unidad)" del insumo, como la columna "Ingrediente (unidad)"
+// del Excel del dueño: "Leche (ml)".
+export const ingredientLabel = (s: Pick<Supply, 'name' | 'baseUnit'>): string =>
+  `${s.name} (${s.baseUnit})`;
+
+// Redondeo a 3 decimales (precisión de `quantity_base` en el backend).
+export const round3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+// Parsea una cantidad escrita por el usuario admitiendo coma o punto decimal
+// ("1,5" → 1.5). Devuelve NaN si no es un número.
+export const parseDecimalInput = (raw: string): number => {
+  const normalized = raw.trim().replace(',', '.');
+  if (normalized === '') return NaN;
+  return Number(normalized);
+};
+
+// Cuenta los decimales de un valor ya normalizado (para validar ≤ 3).
+export const decimalPlaces = (raw: string): number => {
+  const normalized = raw.trim().replace(',', '.');
+  const dot = normalized.indexOf('.');
+  return dot === -1 ? 0 : normalized.length - dot - 1;
+};
+
+// Cantidad en unidad base para pintar, admitiendo decimales: "0.8", "1,800".
+// Entera → con separador de miles; con decimales → hasta 3, sin ceros sobrantes.
+export const formatQuantityBase = (n: number): string =>
+  Number.isInteger(n)
+    ? n.toLocaleString('es-MX')
+    : round3(n).toLocaleString('es-MX', { maximumFractionDigits: 3 });
+
+// Costo unitario de un insumo en centavos (decimal): packageCostCents/packageContent.
+// null si no hay costo capturado o el contenido no es válido.
+export const unitCostCents = (s: Pick<Supply, 'packageCostCents' | 'packageContent'>): number | null => {
+  const cost = s.packageCostCents ?? null;
+  if (cost === null || !s.packageContent || s.packageContent <= 0) return null;
+  return cost / s.packageContent;
+};
+
+// Formatea un costo pequeño en pesos (ej. costo por unidad: $0.0095, $0.0026).
+// Hasta 4 decimales, sin ceros sobrantes más allá del segundo decimal (mínimo 2).
+export const formatSmallMoney = (cents: number): string => {
+  const pesos = cents / 100;
+  const fixed = pesos.toFixed(4);
+  const [intPart, decRaw] = fixed.split('.');
+  let dec = decRaw.replace(/0+$/, '');
+  if (dec.length < 2) dec = dec.padEnd(2, '0');
+  return `${intPart}.${dec}`;
+};

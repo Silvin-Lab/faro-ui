@@ -25,6 +25,8 @@ import {
   Handshake,
   BadgePercent,
   Lightbulb,
+  BookOpen,
+  DollarSign,
 } from 'lucide-react';
 import type { User } from '@/lib/auth';
 
@@ -74,6 +76,15 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
             ],
           },
           {
+            label: 'Recetario',
+            items: [
+              { href: '/recipes', label: 'Recetario', icon: BookOpen },
+              { href: '/recipes/prices', label: 'Precios', icon: DollarSign },
+              { href: '/supplies', label: 'Insumos', icon: Boxes },
+              { href: '/supplies/categories', label: 'Categorías de insumo', icon: Tag },
+            ],
+          },
+          {
             label: 'Almacén',
             items: [
               { href: '/warehouse', label: 'Almacén', icon: Warehouse },
@@ -82,8 +93,6 @@ export function Sidebar({ user, onNavigate }: { user: User; onNavigate?: () => v
               { href: '/warehouse/dispatches', label: 'Salidas', icon: Truck },
               { href: '/warehouse/waste', label: 'Mermas', icon: Trash2 },
               { href: '/warehouse/suppliers', label: 'Proveedores', icon: Handshake },
-              { href: '/supplies', label: 'Insumos', icon: Boxes },
-              { href: '/supplies/categories', label: 'Categorías de insumo', icon: Tag },
             ],
           },
         ]
